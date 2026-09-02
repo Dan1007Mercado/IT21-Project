@@ -1,0 +1,368 @@
+# ========================================
+INTSEC USER USE CASES
+# ========================================
+
+SYSTEM OVERVIEW
+
+INTSEC is currently implemented as a Laravel web application with authenticated user access, a personal dashboard, monitoring pages for authentication and request activity, and a protected administrator area for security settings and audit review. The active codebase uses Blade views, middleware-based authorization, and server-side checks rather than Filament admin panels or policy-driven UI features.
+
+The current application supports the following persisted user model roles in the codebase:
+- Administrator
+- Standard User
+
+Unauthenticated users are also supported as a login-only access state.
+
+
+## ROLE: GUEST / UNAUTHENTICATED USER
+
+UC-GUEST-01: Authenticate to INTSEC
+Actor:
+Guest / Unauthenticated user
+
+Description:
+The user can access the application login form and authenticate with a valid email and password.
+
+Main Area:
+Authentication
+
+General Capabilities:
+- View the login page
+- Submit valid credentials
+- Start an authenticated session after successful login
+- Receive validation feedback for invalid credentials
+- Be blocked from login when the source IP is currently blocked by the application security layer
+
+Access Notes:
+- Login is restricted to the guest route group in the application routing.
+- Repeated failed login attempts are evaluated in server-side security logic.
+- Authentication attempts are recorded as security-relevant application activity.
+
+---
+
+## ROLE: STANDARD USER
+
+UC-STD-01: Access the personal dashboard
+Actor:
+Standard User
+
+Description:
+The authenticated standard user can access the main INTSEC dashboard to review their session and application monitoring context.
+
+Main Area:
+Dashboard
+
+General Capabilities:
+- View the security overview dashboard
+- Review authentication activity summary counts for the user's account
+- Review recent authentication activity
+- Review daily authentication trends for the logged-in user
+- See successful and failed activity totals relevant to the session/account context
+
+Access Notes:
+- Standard users are not granted access to administrator-only routes.
+- Dashboard content is generated from the authenticated user's activity records and related application data.
+
+---
+
+UC-STD-02: Review personal authentication activity
+Actor:
+Standard User
+
+Description:
+The user can review recent login-related activity associated with their account within the application.
+
+Main Area:
+Authentication Activity
+
+General Capabilities:
+- View recent authentication events
+- Review the status of each event
+- See the IP associated with each event when present
+- See the timestamp of the event
+- Review a history of login/logout-related activity tied to the authenticated user
+
+Access Notes:
+- The login activity page is scoped to the current authenticated user.
+- The standard user does not gain access to system-wide activity records through the code paths in place.
+
+---
+
+UC-STD-03: Review security monitoring pages available to authenticated users
+Actor:
+Standard User
+
+Description:
+The user can access the monitoring pages available to all authenticated users to view aggregated application-level security information.
+
+Main Area:
+Monitoring
+
+General Capabilities:
+- View request-spike monitoring
+- Review attack-frequency views based on authentication event data
+- View IP-location summaries derived from recorded addresses
+- Navigate to relevant monitoring details from the dashboard
+
+Access Notes:
+- These pages are part of the authenticated user area, not the administrator-only section.
+- The application does not hide the monitoring views behind admin-only middleware.
+
+---
+
+UC-STD-04: Manage personal account details
+Actor:
+Standard User
+
+Description:
+The authenticated standard user can update their own profile information and password.
+
+Main Area:
+Account
+
+General Capabilities:
+- Update profile information such as name and email address
+- Change the account password
+- Submit profile changes through the application flow
+
+Access Notes:
+- This is scoped to the current authenticated user only.
+- The code performs server-side validation and uses the authenticated user record for updates.
+
+---
+
+UC-STD-05: Sign out of INTSEC
+Actor:
+Standard User
+
+Description:
+The authenticated user can log out and terminate the active application session.
+
+Main Area:
+Authentication
+
+General Capabilities:
+- Submit a logout request
+- End the current session safely
+- Return to the login page after logout
+- Record the logout event as authentication activity
+
+---
+
+## ROLE: ADMINISTRATOR
+
+UC-ADM-01: Access administrator monitoring and security dashboard
+Actor:
+Administrator
+
+Description:
+The administrator can access the protected administrator area and the security monitoring interface provided by the application.
+
+Main Area:
+Dashboard / Administration
+
+General Capabilities:
+- Access the admin landing area
+- View the security overview dashboard
+- Review monitoring statistics for authentication events and traffic-related activity
+- Navigate to security and administration screens from the main navigation
+
+Access Notes:
+- Access is enforced with administrator-only middleware.
+- The route group is protected by the custom admin middleware alias registered in the application bootstrap.
+
+---
+
+UC-ADM-02: Configure security thresholds and system settings
+Actor:
+Administrator
+
+Description:
+The administrator can change the application's security-related configuration values supported by INTSEC.
+
+Main Area:
+System Settings
+
+General Capabilities:
+- Review current security settings
+- Update authentication protection thresholds
+- Update attempt-window and lockout durations
+- Update detection thresholds used by the monitoring system
+- Update application-level IP block defaults
+- Save configuration changes for the active application runtime
+
+Access Notes:
+- This capability is implemented in the admin settings route and admin settings Blade page.
+- Saving settings triggers audit-log recording when values change.
+- The settings are stored in the system_settings table and refreshed in the application configuration.
+
+---
+
+UC-ADM-03: Review administrator audit history
+Actor:
+Administrator
+
+Description:
+The administrator can access the historical audit trail of important application and security changes.
+
+Main Area:
+Audit Logs
+
+General Capabilities:
+- View recorded administrative actions
+- See who performed an action when an actor is present
+- Review the associated resource type and resource name
+- Review the IP address involved in the action
+- Review the timestamp of the action
+- Review previous and new values where recorded
+
+Access Notes:
+- The audit log view is admin-only and read-only in the current code.
+- The application uses audit records to capture important system changes, including configuration updates and automatic IP blocking actions.
+
+---
+
+UC-ADM-04: Monitor authentication activity and security trends
+Actor:
+Administrator
+
+Description:
+The administrator can review authentication activity and the monitoring summaries that support investigation and response work.
+
+Main Area:
+Authentication Monitoring
+
+General Capabilities:
+- Review login activity at the application level
+- Review successful and failed authentication totals
+- Review authentication activity patterns over time
+- Review recent security activity context
+- Investigate suspicious or repeated authentication behavior
+
+Access Notes:
+- The application stores activity as AuthenticationLog records and surfaces them in the dashboard and monitoring pages.
+- This is not limited to the current user; it is the application-level monitoring flow available to administrators.
+
+---
+
+UC-ADM-05: Monitor request spikes and abnormal traffic patterns
+Actor:
+Administrator
+
+Description:
+The administrator can review request-volume patterns to identify unusual spikes or elevated activity windows.
+
+Main Area:
+Security Monitoring
+
+General Capabilities:
+- View request volume by hour
+- Review peak request counts
+- Review suspicious spike thresholds
+- Evaluate time windows with unusual volume
+- Use the monitoring chart to identify traffic concentration periods
+
+Access Notes:
+- The DDoS/request-spikes monitoring page is in the authenticated user routes, but the administrator is the intended operational user for this area.
+- The current implementation is time-based aggregation rather than IP-by-IP enumeration, which prevents excessive clutter in the monitoring UI.
+
+---
+
+UC-ADM-06: Investigate security events and automated alerts
+Actor:
+Administrator
+
+Description:
+The administrator can review application-generated security events when the system detects suspicious conditions.
+
+Main Area:
+Security Events
+
+General Capabilities:
+- Review security-relevant activity records
+- Assess severity as part of the event lifecycle
+- Link repeated failed authentication conditions to event records
+- Review event metadata and source context
+- Use the event information as input to follow-on investigation work
+
+Access Notes:
+- Security events are persisted in the security_events table and created by the application service layer.
+- The code currently uses event recording for repeated failed authentication and related monitoring conditions.
+- This is operational monitoring, not a full incident workflow UI in the current implementation.
+
+---
+
+UC-ADM-07: Support automatic application-level IP blocking protections
+Actor:
+Administrator
+
+Description:
+The administrator benefits from the application's automated protection workflow when repeated failed authentication attempts occur from a source IP.
+
+Main Area:
+IP Control / Authentication Protection
+
+General Capabilities:
+- Allow the system to detect repeated failed login attempts
+- Allow temporary blocking of sources that exceed configured thresholds
+- Review the blocked condition in system records and audit logs
+- Support the application-level enforcement path used before login processing
+
+Access Notes:
+- The code implements IP blocking through the BlockedIp model and the LoginProtectionService.
+- Blocking is enforced by middleware before login processing.
+- The current codebase includes the underlying block logic and persistence model, but not a dedicated UI for administrative block management.
+
+---
+
+UC-ADM-08: Review application-level IP intelligence
+Actor:
+Administrator
+
+Description:
+The administrator can review IP-based location and identity information recorded from authentication activity to support investigation and monitoring tasks.
+
+Main Area:
+IP Intelligence
+
+General Capabilities:
+- View IP address summaries
+- Review geographic and network metadata when available
+- Review event counts associated with a source IP
+- Compare repeated source activity across the application's collected data
+
+Access Notes:
+- The IP locations page is part of the authenticated application monitoring area and is available to all authenticated users, but it is particularly relevant to administrative investigation workflows.
+- The implementation uses persisted authentication activity and a lookup service for public-IP metadata.
+
+---
+
+ROLE ACCESS SUMMARY
+
+Administrator:
+- Dashboard
+- Monitoring pages
+- Authentication activity review
+- DDoS / request-spike monitoring
+- IP-intelligence views
+- System settings
+- Audit history
+- Administrative access to protected security routes
+- Access to the admin landing page
+
+Standard User:
+- Authentication and login
+- Personal dashboard
+- Personal login activity
+- Profile and password management
+- Authenticated monitoring pages available in the application
+- Standard account operations within the authenticated session
+
+Guest / Unauthenticated User:
+- Login page access
+- Authentication attempt flow
+- Account access only after successful authentication
+
+
+IMPLEMENTATION BASIS
+
+These use cases were derived from the current implementation of the application by inspecting the actual routing, middleware, authentication flow, controller behavior, dashboard views, user model, settings logic, IP-block enforcement, audit-log model, and persistence layer. The application currently presents a custom Blade-based monitoring interface with server-side authorization checks rather than a Filament CRUD or resource layer. No Filament panels, resources, or widgets were found in the active implementation, and deferred features such as OAuth, TOTP, reCAPTCHA, and WebSockets are not described as current user-facing capabilities.

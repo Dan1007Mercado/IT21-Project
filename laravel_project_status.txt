@@ -1,0 +1,281 @@
+INTSEC LARAVEL PROJECT STATUS REPORT
+===================================
+
+Project name: INTSEC
+Purpose: Integrated Intrusion Monitoring and Incident Response System
+Stack: Laravel 12, Blade, Tailwind CSS, MySQL, Chart.js
+Current implementation style: custom Blade + Laravel middleware routes, not Filament-based admin panels
+
+1. CURRENT SYSTEM STATUS
+------------------------
+
+The project is currently in a working security-monitoring and access-control foundation stage. The application implements authenticated access, user roles, authentication logging, repeated-failure login protection, system settings, auto-generated audit records, and a custom admin monitoring interface.
+
+The current codebase is not a future proposal; it reflects the functionality that is actually implemented in the app as it exists today.
+
+2. IMPLEMENTED USER ROLES
+-------------------------
+
+A. Guest / unauthenticated user
+- Can access the login page.
+- Can submit credentials for authentication.
+- Is blocked from protected routes until authenticated.
+
+B. Standard User
+- Can authenticate and access the authenticated application session.
+- Can view the main dashboard and basic monitoring views.
+- Can review their own authentication activity.
+- Can update their own account profile and password.
+- Cannot access administrator-only routes or settings screens.
+
+C. Administrator
+- Can access the protected administration area.
+- Can review security monitoring information.
+- Can modify supported security settings.
+- Can review audit logs.
+- Can operate in the admin monitoring flows supported by the application.
+
+3. AUTHENTICATION AND SESSION MANAGEMENT
+----------------------------------------
+
+Implemented and working:
+- Laravel built-in authentication flow for login/logout.
+- Middleware-protected authenticated routes.
+- Guest-only login route.
+- Session regeneration after successful login.
+- Login/logout events are recorded as AuthenticationLog records.
+- Failed login attempts are evaluated against the configured thresholds.
+- Inactive users are blocked from login.
+- Blocked IPs are checked before authentication processing continues.
+
+Files involved:
+- routes/web.php
+- app/Http/Controllers/Auth/AuthenticatedSessionController.php
+- app/Http/Middleware/EnsureIpNotBlocked.php
+- app/Models/User.php
+
+4. AUTHORIZATION AND ROLE ENFORCEMENT
+-------------------------------------
+
+Implemented and enforced server-side:
+- Custom admin middleware alias is registered in bootstrap/app.php.
+- The admin route group is protected using the 'admin' middleware alias.
+- The middleware aborts with HTTP 403 when a non-administrator attempts access.
+- Navigation for admin features is only rendered for administrators.
+- Standard users cannot access admin routes through the current application logic.
+
+Files involved:
+- bootstrap/app.php
+- app/Http/Middleware/EnsureAdministrator.php
+- app/Models/User.php
+- resources/views/components/layouts/app.blade.php
+
+5. USER DASHBOARD AND AUTHENTICATION OVERVIEW
+---------------------------------------------
+
+Implemented in the current app:
+- Main dashboard page at resources/views/dashboard.blade.php.
+- Dashboard controller logic in app/Http/Controllers/DashboardController.php.
+- Shows summary metrics for:
+  - total attempts
+  - successful login attempts
+  - failed login attempts
+- Shows a 7-day activity trend chart.
+- Shows a doughnut chart for successful/failed/logout status mix.
+- Shows recent authentication activity for the current user.
+- Shows security monitoring links to other dashboard sections.
+
+6. MONITORING VIEWS CURRENTLY ACTIVE
+------------------------------------
+
+A. Request spike / DDoS monitoring
+- View: resources/views/ddos-monitoring/index.blade.php
+- Controller: app/Http/Controllers/DashboardController.php::ddosMonitoring()
+- The current implementation groups activity by hour rather than listing every IP individually.
+- It shows:
+  - current requests
+  - peak requests
+  - suspicious spike count
+  - 24-hour hourly request trend
+  - traffic intensity buckets by hour
+
+B. Attack frequency
+- View: resources/views/attack-frequency/index.blade.php
+- Controller: app/Http/Controllers/DashboardController.php::attackFrequency()
+- Shows request frequency grouped by IP.
+
+C. IP locations
+- View: resources/views/ip-locations/index.blade.php
+- Controller: app/Http/Controllers/DashboardController.php::ipLocations()
+- Groups authentication activity by IP address.
+- Displays geolocation and network metadata when present.
+
+D. Login activity
+- View: resources/views/login-activity.blade.php
+- Controller: app/Http/Controllers/DashboardController.php::loginActivity()
+- Displays recent authentication activity for the authenticated user.
+
+7. SECURITY EVENT, IP BLOCKING, AND LOGIN PROTECTION
+----------------------------------------------------
+
+Implemented and persisted in the database:
+- SecurityEvent model: app/Models/SecurityEvent.php
+- BlockedIp model: app/Models/BlockedIp.php
+- LoginProtectionService: app/Services/Security/LoginProtectionService.php
+- AuthenticationLog model: app/Models/AuthenticationLog.php
+
+Current capabilities:
+- Repeated failed login attempts are evaluated against configured thresholds.
+- Matching failed-login conditions can trigger temporary application-level IP blocking.
+- Blocked IP records include IP, reason, blocked timestamp, expiration, status, and optional administrator reference.
+- Blocked IPs are checked before login attempts are processed.
+- Security events are created when suspicious repeated-authentication conditions are triggered.
+- The system supports automatic block actions and persistence of the related event and audit trail.
+
+8. SETTINGS IMPLEMENTATION
+--------------------------
+
+Implemented in the application:
+- System settings model: app/Models/SystemSetting.php
+- Settings service: app/Services/Security/IntsecSettings.php
+- Settings page: resources/views/admin/settings.blade.php
+- Settings controller: app/Http/Controllers/AdminSecurityController.php
+
+Current settings supported by the app include:
+- max_login_attempts
+- login_attempt_window_minutes
+- login_block_duration_minutes
+- failed_login_warning_threshold
+- repeated_authentication_threshold
+- repeated_ip_activity_threshold
+- default_ip_block_duration_minutes
+
+These are stored in the system_settings table and are refreshed into Laravel config values when updated.
+
+9. AUDIT LOGGING
+----------------
+
+Implemented and persisted:
+- model: app/Models/AuditLog.php
+- controller: app/Http/Controllers/AdminSecurityController.php
+
+Current behavior:
+- Important administrative and system actions are recorded as audit entries.
+- Audit records include:
+  - action
+  - actor
+  - resource type/name
+  - IP address
+  - prior values
+  - new values
+  - description
+  - timestamp
+- The app records audit entries when security settings are changed.
+- Automatic blocking actions also generate audit records.
+- The audit log page is read-only from the app UI.
+
+10. ADMINISTRATION AREA
+-----------------------
+
+Implemented admin screens:
+- admin landing page: resources/views/admin/index.blade.php
+- system settings page: resources/views/admin/settings.blade.php
+- audit logs page: resources/views/admin/audit-logs.blade.php
+
+Admin routes in routes/web.php:
+- GET /admin
+- GET /admin/settings
+- POST /admin/settings
+- GET /admin/audit-logs
+
+The admin routes are protected with the custom admin middleware and are not accessible to standard users.
+
+11. MODELS AND DATABASE LAYER
+-----------------------------
+
+Current persisted model/domain objects in the app:
+- User
+- AuthenticationLog
+- SecurityEvent
+- BlockedIp
+- SystemSetting
+- AuditLog
+
+The database includes custom migrations for:
+- authentication logs
+- user security/account fields
+- IP-location enrichment columns
+- system settings table
+- security events table
+- blocked IP table
+- audit log table
+
+12. SEEDING AND DEVELOPMENT DATA
+--------------------------------
+
+Seeder file: database/seeders/DatabaseSeeder.php
+Current seed logic includes:
+- default administrator account
+- default standard user
+- additional demo users
+- realistic authentication activity entries
+- sample geolocation-related entries
+- default security settings values
+
+13. TEST STATUS
+----------------
+
+The app includes automated tests for key behavior, including authentication and access control.
+
+Current test coverage includes:
+- authentication flow
+- login success/failure behavior
+- inactive users
+- dashboard access
+- system settings behavior
+- audit logging behavior
+- access restrictions for admin vs non-admin users
+
+The current verification run included targeted tests for key security behavior and access restrictions.
+
+14. USER-FACING UI STATUS
+-------------------------
+
+Current user-facing application features include:
+- login form
+- authenticated dashboard
+- user profile and password editing
+- security overview card layout
+- activity trend charts
+- status breakdown charts
+- request spike monitoring by time bucket
+- attack frequency view
+- IP intelligence views
+- admin settings interface
+- audit log review interface
+- responsive dark dashboard UI
+- protected admin navigation and access flow
+
+15. CURRENT FUNCTIONAL STATE
+---------------------------
+
+The current INTSEC implementation is a working Laravel-based monitoring and response foundation with these core capabilities:
+- login/logout and authenticated sessions
+- user role separation
+- application-level authentication monitoring
+- blocked IP enforcement and repeated-failure protection
+- security event persistence
+- admin system settings configuration
+- audit history tracking
+- security dashboard and monitoring pages
+- real database-backed metrics and monitoring views
+
+Important note:
+- Filament is not currently implemented as the active admin layer in this codebase.
+- The active application uses custom Laravel + Blade screens and middleware-based authorization.
+- Deferred capabilities such as reCAPTCHA, OAuth, TOTP, advanced IDS logic, and WebSockets are not part of the current implemented system unless explicitly added elsewhere in a future phase.
+
+16. FINAL STATUS
+----------------
+
+INTSEC is currently operating as a working application-level intrusion monitoring and response foundation with live authentication security logic, database-backed monitoring, settings controls, and admin audit capabilities. The project has moved beyond pure scaffolding and represents a functional security-monitoring system in its current state.
