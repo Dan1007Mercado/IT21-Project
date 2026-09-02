@@ -10,7 +10,7 @@
     <div class="flex flex-col gap-1 border-b border-zinc-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <p class="font-mono-data text-xs text-cyan-400">{{ auth()->user()->name }} · session active</p>
-            <h1 class="mt-2 text-2xl font-semibold text-white">Security overview</h1>
+            <h1 class="mt-2 text-2xl font-semibold text-white">User dashboard</h1>
         </div>
         <div class="flex items-center gap-2 border border-zinc-800 px-3 py-1.5 font-mono-data text-xs text-zinc-400">
             <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
@@ -41,7 +41,7 @@
         <section class="border-b border-zinc-800 p-6 lg:border-b-0 lg:border-r">
             <div class="mb-5 flex items-center justify-between">
                 <div>
-                    <h2 class="font-semibold text-white">Activity, last 7 days</h2>
+                    <h2 class="font-semibold text-white">7-day activity trend</h2>
                     <p class="text-sm text-zinc-500">Login attempts recorded per day</p>
                 </div>
                 <a href="{{ route('login-activity') }}" class="font-mono-data text-xs text-cyan-400 hover:text-cyan-300">view log →</a>
@@ -53,7 +53,7 @@
 
         <section class="p-6">
             <div class="mb-5">
-                <h2 class="font-semibold text-white">Status mix</h2>
+                <h2 class="font-semibold text-white">Login status mix</h2>
                 <p class="text-sm text-zinc-500">Successful vs. failed vs. logouts</p>
             </div>
             <div class="h-64">

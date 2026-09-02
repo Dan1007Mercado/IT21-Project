@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminSecurityController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\EnsureIpNotBlocked;
 use Illuminate\Support\Facades\Route;
@@ -39,5 +40,15 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/admin/settings', [AdminSecurityController::class, 'saveSettings'])->name('admin.settings.store');
 
         Route::get('/admin/audit-logs', [AdminSecurityController::class, 'auditLogs'])->name('admin.audit-logs');
+
+        Route::get('/incidents', [IncidentController::class, 'index'])->name('incidents.index');
+        Route::post('/incidents', [IncidentController::class, 'store'])->name('incidents.store');
+        Route::get('/incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
+        Route::put('/incidents/{incident}', [IncidentController::class, 'update'])->name('incidents.update');
+        Route::patch('/incidents/{incident}/severity', [IncidentController::class, 'updateSeverity'])->name('incidents.severity.update');
+        Route::post('/incidents/{incident}/remarks', [IncidentController::class, 'storeRemark'])->name('incidents.remarks.store');
+        Route::post('/incidents/{incident}/response', [IncidentController::class, 'storeResponseAction'])->name('incidents.response.store');
+        Route::patch('/incidents/{incident}/status', [IncidentController::class, 'updateStatus'])->name('incidents.status.update');
+        Route::post('/incidents/{incident}/assign', [IncidentController::class, 'assign'])->name('incidents.assign');
     });
 });

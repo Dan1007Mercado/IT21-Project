@@ -56,6 +56,21 @@ class User extends Authenticatable
         return $this->hasMany(AuthenticationLog::class);
     }
 
+    public function incidents(): HasMany
+    {
+        return $this->hasMany(Incident::class);
+    }
+
+    public function assignedIncidents(): HasMany
+    {
+        return $this->hasMany(Incident::class, 'assigned_to');
+    }
+
+    public function incidentRemarks(): HasMany
+    {
+        return $this->hasMany(IncidentRemark::class, 'author_id');
+    }
+
     public function isAdministrator(): bool
     {
         return $this->role === 'administrator';

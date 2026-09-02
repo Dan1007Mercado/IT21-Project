@@ -90,19 +90,17 @@ class DashboardController extends Controller
         })->values();
 
         $bucketCounts = AuthenticationLog::query()
-            ->selectRaw("HOUR(occurred_at) as hour_bucket, COUNT(*) as request_count")
             ->whereNotNull('occurred_at')
             ->where('occurred_at', '>=', now()->subDays(7))
-            ->groupByRaw('HOUR(occurred_at)')
-            ->orderBy('hour_bucket')
-            ->get();
+            ->get(['occurred_at'])
+            ->groupBy(function ($log) {
+                return $log->occurred_at->hour;
+            });
 
-        foreach ($bucketCounts as $bucket) {
-            $hour = (int) $bucket->hour_bucket;
-
+        foreach ($bucketCounts as $hour => $logs) {
             $hourlyTrend[$hour] = [
                 'label' => sprintf('%02d:00', $hour),
-                'count' => (int) $bucket->request_count,
+                'count' => $logs->count(),
             ];
         }
 
