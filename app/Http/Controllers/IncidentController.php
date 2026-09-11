@@ -6,6 +6,8 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\IncidentRemark;
 use App\Models\User;
+use App\Services\Security\IpManagementService;
+use App\Services\Security\IpNetwork;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,10 +35,13 @@ class IncidentController extends Controller
             'resolved' => Incident::query()->where('status', 'resolved')->count(),
         ];
 
+        $users = User::orderBy('name')->get();
+
         return view('incidents.index', [
             'incidents' => $incidents,
             'summary' => $summary,
             'filters' => $request->all(),
+            'users' => $users,
         ]);
     }
 
@@ -44,9 +49,24 @@ class IncidentController extends Controller
     {
         $incident->load(['user', 'assignedAdministrator', 'securityEvent', 'remarks.author', 'statusHistory.actor']);
 
+        $admins = User::where('role', 'administrator')->orderBy('name')->get();
+
+        $ipDecision = null;
+        $ipRules = collect();
+
+        if ($incident->source_ip) {
+            $manager = app(IpManagementService::class);
+            $decision = $manager->decide($incident->source_ip, recordMatch: false);
+            $ipDecision = $decision['decision'];
+            $ipRules = $manager->matchingRules($incident->source_ip);
+        }
+
         return view('incidents.show', [
             'incident' => $incident,
             'timeline' => $incident->timelineEntries(),
+            'admins' => $admins,
+            'ipDecision' => $ipDecision,
+            'ipRules' => $ipRules,
         ]);
     }
 
@@ -127,7 +147,7 @@ class IncidentController extends Controller
             'description' => ['nullable', 'string'],
             'incident_type' => ['required', 'string', 'max:80'],
             'severity' => ['required', 'in:Normal,Warning,Suspicious,High,Critical'],
-            'status' => ['required', 'in:open,investigating,contained,resolved,false_positive'],
+            'status' => ['nullable', 'in:open,investigating,contained,resolved,closed,false_positive'],
             'source_ip' => ['nullable', 'ip'],
             'user_id' => ['nullable', 'exists:users,id'],
             'security_event_id' => ['nullable', 'exists:security_events,id'],
@@ -142,17 +162,19 @@ class IncidentController extends Controller
         ]);
 
         $incident = DB::transaction(function () use ($validated, $request) {
+            $assignedTo = $validated['assigned_to'] ?? $request->user()?->id;
+
             $incident = Incident::query()->create([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'incident_type' => $validated['incident_type'],
                 'severity' => $validated['severity'],
-                'status' => $validated['status'],
+                'status' => $validated['status'] ?? 'open',
                 'source_ip' => $validated['source_ip'] ?? null,
                 'user_id' => $validated['user_id'] ?? null,
                 'security_event_id' => $validated['security_event_id'] ?? null,
-                'assigned_to' => $validated['assigned_to'] ?? $request->user()?->id,
-                'assigned_at' => $validated['assigned_to'] ? now() : null,
+                'assigned_to' => $assignedTo,
+                'assigned_at' => $assignedTo ? now() : null,
                 'detection_reason' => $validated['detection_reason'] ?? null,
                 'detection_rule' => $validated['detection_rule'] ?? null,
                 'event_count' => $validated['event_count'] ?? 1,
@@ -219,7 +241,7 @@ class IncidentController extends Controller
     public function updateStatus(Request $request, Incident $incident): RedirectResponse
     {
         $validated = $request->validate([
-            'status' => ['required', 'in:open,investigating,contained,resolved,false_positive'],
+            'status' => ['required', 'in:open,investigating,contained,resolved,closed,false_positive'],
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -234,6 +256,11 @@ class IncidentController extends Controller
             }
 
             if ($validated['status'] === 'resolved' && empty($incident->resolved_at)) {
+                $incident->resolved_at = now();
+                $incident->save();
+            }
+
+            if ($validated['status'] === 'closed' && empty($incident->resolved_at)) {
                 $incident->resolved_at = now();
                 $incident->save();
             }
@@ -290,7 +317,7 @@ class IncidentController extends Controller
         $validated = $request->validate([
             'response_actions' => ['nullable', 'string', 'max:2000'],
             'resolution_notes' => ['nullable', 'string', 'max:2000'],
-            'status' => ['nullable', 'in:open,investigating,contained,resolved,false_positive'],
+            'status' => ['nullable', 'in:open,investigating,contained,resolved,closed,false_positive'],
         ]);
 
         if (! empty($validated['response_actions'])) {
@@ -323,6 +350,71 @@ class IncidentController extends Controller
         );
 
         return redirect()->route('incidents.show', $incident)->with('status', 'response-updated');
+    }
+
+    /**
+     * Incident -> IP Management: create a BLOCK rule for the incident source IP.
+     * Idempotent: reuses the existing enforcing block rule when covered.
+     */
+    public function blockIp(Request $request, Incident $incident, IpManagementService $ipManagement): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+            'expires_at' => ['nullable', 'date', 'after:now'],
+            'expiration' => ['nullable', 'in:permanent,30m,1h,24h,7d,30d,custom'],
+            'confirm_self_block' => ['nullable', 'boolean'],
+        ]);
+
+        $sourceIp = trim((string) $incident->source_ip);
+
+        if ($sourceIp === '') {
+            return redirect()->route('incidents.show', $incident)->withErrors(['source_ip' => 'This incident has no source IP to block.']);
+        }
+
+        if (IpNetwork::matches($sourceIp, $request->ip() ?? '') && ! $request->boolean('confirm_self_block')) {
+            return back()->withErrors([
+                'source_ip' => 'Blocking '.$sourceIp.' would block your own IP address ('.$request->ip().'). Confirm explicitly to proceed.',
+            ]);
+        }
+
+        try {
+            $rule = $ipManagement->blockFromIncident($incident, [
+                'reason' => $validated['reason'] ?? null,
+                'expires_at' => $this->resolveBlockExpiration($validated),
+            ], $request->user(), $request->ip());
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return back()->withErrors(['source_ip' => $e->getMessage()]);
+        }
+
+        $incident->remarks()->create([
+            'author_id' => $request->user()->id,
+            'remark' => 'IP '.$rule->ip_address.' blocked via IP Management (rule #'.$rule->id.').',
+        ]);
+
+        return redirect()->route('ip-management.index', ['search' => $rule->ip_address])
+            ->with('status', 'incident-ip-blocked');
+    }
+
+    protected function resolveBlockExpiration(array $validated): mixed
+    {
+        $mode = $validated['expiration'] ?? null;
+
+        if ($mode === null || $mode === 'permanent') {
+            return $validated['expires_at'] ?? null;
+        }
+
+        if ($mode === 'custom') {
+            return $validated['expires_at'] ?? null;
+        }
+
+        return match ($mode) {
+            '30m' => now()->addMinutes(30),
+            '1h' => now()->addHour(),
+            '24h' => now()->addDay(),
+            '7d' => now()->addDays(7),
+            '30d' => now()->addDays(30),
+            default => null,
+        };
     }
 
     protected function applyFilters($query, Request $request): void

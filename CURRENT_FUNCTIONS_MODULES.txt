@@ -1,0 +1,99 @@
+INTSEC — Current Functions and Modules (summary)
+===============================================
+
+Date: 2026-09-12
+
+Overview:
+A concise map of the primary modules, key controllers, models, services, views, and notable functions currently present in the repository.
+
+Core Models:
+- User (app/Models/User.php)
+- AuthenticationLog (app/Models/AuthenticationLog.php)
+- SecurityEvent (app/Models/SecurityEvent.php) — static helper: record()
+- BlockedIp (app/Models/BlockedIp.php)
+- SystemSetting (app/Models/SystemSetting.php) — static helper: getValue()
+- AuditLog (app/Models/AuditLog.php) — AuditLog::record()
+- Incident (app/Models/Incident.php) — generateIncidentId(), updateStatus(), timelineEntries(), relationships: remarks, statusHistory
+- IncidentRemark (app/Models/IncidentRemark.php)
+- IncidentStatusHistory (app/Models/IncidentStatusHistory.php)
+- SecurityAlert (app/Models/SecurityAlert.php) — generateAlertId(), relationships: acknowledgedBy, incident, securityEvent
+
+Key Services (app/Services/Security):
+- IntsecSettings.php — getInt(), get(), all(), refreshConfig() (reads system_settings values including repeated_ip_activity_threshold)
+- IpWhoisService.php — IP enrichment lookup
+- LoginProtectionService.php — repeated-failure blocking and block creation logic
+
+Primary Controllers (app/Http/Controllers):
+- DashboardController.php
+  - __invoke() — dashboard data (7-day trend, status breakdown, recent activity)
+  - ddosMonitoring() — hourly buckets, spike detection view
+  - attackFrequency() — top IPs by request_count; NEW: calls processIpActivity() to create alerts/incidents when count > threshold
+  - ipLocations(), loginActivity(), buildSevenDayTrend(), buildAttackFrequency(), prepareIpLocations()
+  - processIpActivity(ip, count, threshold) — (recent addition) deduplication + create SecurityEvent -> SecurityAlert -> Incident transactionally; updates existing incident when recent
+
+- IncidentController.php
+  - index(), show()
+  - store() — create incident (now defaults status => 'open' when nullable)
+  - update(), updateSeverity(), updateStatus(), assign(), storeRemark(), storeResponseAction()
+  - applyFilters()
+
+- SecurityAlertController.php
+  - index(), show(), store(), acknowledge(), updateStatus(), createIncident()
+
+- AdminSecurityController.php (admin settings + audit views)
+- AuthenticatedSessionController.php (login/logout flows)
+
+Middleware:
+- EnsureIpNotBlocked (app/Http/Middleware/EnsureIpNotBlocked.php)
+- EnsureAdministrator (app/Http/Middleware/EnsureAdministrator.php)
+- Standard auth middleware (route groups)
+
+Views (resources/views):
+- dashboard.blade.php (activity charts, links)
+- ddos-monitoring/index.blade.php
+- attack-frequency/index.blade.php
+- ip-locations/index.blade.php
+- login-activity.blade.php
+- incidents/index.blade.php — modal to create incident; now posts `status=open` hidden input
+- incidents/show.blade.php — incident detail, timeline, remarks
+- alerts/index.blade.php, alerts/show.blade.php (new alert UI)
+- admin/settings.blade.php, admin/audit-logs.blade.php
+
+Migrations (high level):
+- Users
+- Authentication logs (authentication_logs)
+- System settings (system_settings)
+- Security events (security_events)
+- Blocked IPs (blocked_ips)
+- Audit logs (audit_logs)
+- Incidents (incidents)
+- Incident remarks (incident_remarks)
+- Incident status history (incident_status_histories)
+- Security alerts (security_alerts) — recently added migration
+
+Tests (tests/Feature & tests/Unit):
+- Authentication and access control tests
+- Incident-related feature tests
+- SecurityAlertsTest.php — covers admin alert creation, viewing, and conversion to incident
+
+Notable application behaviors / helpers:
+- Dynamic settings via IntsecSettings (reads `system_settings`, used for thresholds like `repeated_ip_activity_threshold`)
+- SecurityEvent::record(...) to persist events
+- AuditLog::record(...) used extensively for admin and automatic actions
+- Incident ID generation: Incident::generateIncidentId()
+- SecurityAlert generation: SecurityAlert::generateAlertId()
+
+Recent changes implemented:
+- Security Alerts module added (model, migration, controller, views, routes, tests).
+- Automatic threshold-driven alert and incident creation when attack-frequency entries exceed `repeated_ip_activity_threshold`. Threshold read dynamically via IntsecSettings; comparison uses strict greater-than (`>`).
+- Deduplication: `processIpActivity()` checks for recent incident for same IP within 60 minutes and updates existing incident instead of creating duplicates.
+- Incident creation fixes: `store()` accepts nullable `status` and defaults to 'open'; the incident creation modal now includes a hidden `status` field.
+- View fixes: removed in-view DB queries from incidents views; eager-loading added in controllers; stray characters removed from Blade files.
+- Tests updated/added and test suite passes (27 tests, 95 assertions at last run).
+
+Notes & suggested next steps (optional):
+- Move automatic detection (processIpActivity) into a scheduled command or queued job to avoid running logic on page render.
+- Make the deduplication window configurable (add a system setting like `ip_activity_dedup_minutes`).
+- Add Laravel Events when automatic incidents are created to enable notifications/real-time integration later.
+
+End of summary.

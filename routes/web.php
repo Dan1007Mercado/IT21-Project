@@ -4,7 +4,9 @@ use App\Http\Controllers\AdminSecurityController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IncidentController;
+use App\Http\Controllers\IpManagementController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SecurityAlertController;
 use App\Http\Middleware\EnsureIpNotBlocked;
 use Illuminate\Support\Facades\Route;
 
@@ -50,5 +52,31 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/incidents/{incident}/response', [IncidentController::class, 'storeResponseAction'])->name('incidents.response.store');
         Route::patch('/incidents/{incident}/status', [IncidentController::class, 'updateStatus'])->name('incidents.status.update');
         Route::post('/incidents/{incident}/assign', [IncidentController::class, 'assign'])->name('incidents.assign');
+
+        // Security alerts
+        Route::get('/alerts', [SecurityAlertController::class, 'index'])->name('alerts.index');
+        Route::post('/alerts', [SecurityAlertController::class, 'store'])->name('alerts.store');
+        Route::post('/alerts/bulk', [SecurityAlertController::class, 'bulkUpdate'])->name('alerts.bulk');
+        Route::get('/alerts/export', [SecurityAlertController::class, 'export'])->name('alerts.export');
+        Route::get('/alerts/{alert}', [SecurityAlertController::class, 'show'])->name('alerts.show');
+        Route::post('/alerts/{alert}/acknowledge', [SecurityAlertController::class, 'acknowledge'])->name('alerts.acknowledge');
+        Route::patch('/alerts/{alert}/status', [SecurityAlertController::class, 'updateStatus'])->name('alerts.status.update');
+        Route::patch('/alerts/{alert}/severity', [SecurityAlertController::class, 'updateSeverity'])->name('alerts.severity.update');
+        Route::post('/alerts/{alert}/assign', [SecurityAlertController::class, 'assign'])->name('alerts.assign');
+        Route::post('/alerts/{alert}/remarks', [SecurityAlertController::class, 'storeRemark'])->name('alerts.remarks.store');
+        Route::post('/alerts/{alert}/false-positive', [SecurityAlertController::class, 'markFalsePositive'])->name('alerts.false-positive');
+        Route::post('/alerts/{alert}/attach-incident', [SecurityAlertController::class, 'attachIncident'])->name('alerts.attach-incident');
+        Route::post('/alerts/{alert}/create-incident', [SecurityAlertController::class, 'createIncident'])->name('alerts.create-incident');
+        Route::post('/alerts/{alert}/block-ip', [SecurityAlertController::class, 'blockIp'])->name('alerts.block-ip');
+
+        Route::post('/incidents/{incident}/block-ip', [IncidentController::class, 'blockIp'])->name('incidents.block-ip');
+
+        // IP Management (centralized ALLOW / BLOCK enforcement layer)
+        Route::get('/ip-management', [IpManagementController::class, 'index'])->name('ip-management.index');
+        Route::post('/ip-management', [IpManagementController::class, 'store'])->name('ip-management.store');
+        Route::put('/ip-management/{rule}', [IpManagementController::class, 'update'])->name('ip-management.update');
+        Route::patch('/ip-management/{rule}/toggle', [IpManagementController::class, 'toggle'])->name('ip-management.toggle');
+        Route::patch('/ip-management/{rule}/action', [IpManagementController::class, 'switchAction'])->name('ip-management.action');
+        Route::delete('/ip-management/{rule}', [IpManagementController::class, 'destroy'])->name('ip-management.destroy');
     });
 });

@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Security monitoring</p>
-            <h1 class="mt-2 text-3xl font-semibold text-white">Attack frequency</h1>
+            <h1 class="mt-2 text-3xl font-semibold text-white">IP Request Frequency</h1>
         </div>
         <div class="flex flex-wrap gap-2 text-xs text-zinc-300">
             <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Tracked IPs: {{ count($attackFrequency) }}</span>
@@ -11,7 +11,7 @@
 
     <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900 p-5">
         <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-white">Top attacking IPs</h2>
+            <h2 class="text-lg font-semibold text-white">High Load IPs</h2>
             <span class="text-xs uppercase tracking-wide text-zinc-500">7-day view</span>
         </div>
         <div class="h-80">

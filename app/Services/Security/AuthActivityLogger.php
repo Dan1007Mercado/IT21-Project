@@ -15,9 +15,12 @@ class AuthActivityLogger
         ?User $user = null,
         ?string $attemptedIdentity = null,
         ?string $failureReason = null,
+        bool $withIpIntelligence = true,
     ): AuthenticationLog {
         $ipAddress = (string) ($request->ip() ?? '');
-        $location = app(IpWhoisService::class)->lookup($ipAddress);
+        $location = $withIpIntelligence
+            ? app(IpWhoisService::class)->lookup($ipAddress)
+            : null;
 
         $record = AuthenticationLog::create([
             'user_id' => $user?->id,

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AuthenticationLog;
+use App\Models\SecurityAlert;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -132,6 +133,28 @@ class AuthWebTest extends TestCase
             ->assertOk()
             ->assertSee('7-day activity trend')
             ->assertSee('Login status mix');
+    }
+
+    public function test_administrator_dashboard_displays_open_security_alert_notifications(): void
+    {
+        $admin = User::factory()->administrator()->create();
+        SecurityAlert::query()->create([
+            'alert_id' => 'ALT-2026-000777',
+            'title' => 'Brute-force login threshold exceeded',
+            'alert_type' => SecurityAlert::TYPE_BRUTE_FORCE,
+            'severity' => 'High',
+            'source_ip' => '203.0.113.77',
+            'status' => 'new',
+            'occurred_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Security alerts')
+            ->assertSee('1 open')
+            ->assertSee('Brute-force login attempts')
+            ->assertSee('203.0.113.77');
     }
 
     public function test_ip_locations_page_handles_public_geolocated_ips(): void

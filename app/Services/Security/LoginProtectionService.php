@@ -5,6 +5,7 @@ namespace App\Services\Security;
 use App\Models\AuthenticationLog;
 use App\Models\AuditLog;
 use App\Models\BlockedIp;
+use App\Models\SecurityAlert;
 use App\Models\SecurityEvent;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -12,11 +13,16 @@ use Illuminate\Support\Facades\Log;
 
 class LoginProtectionService
 {
+    public function __construct(protected IpManagementService $ipManagementService)
+    {
+    }
+
     public function isBlocked(Request $request): bool
     {
         $ipAddress = $request->ip() ?? '';
 
-        return BlockedIp::isBlocked($ipAddress);
+        // Centralized decision (CIDR-aware, allow/block precedence).
+        return $this->ipManagementService->isBlocked($ipAddress);
     }
 
     public function recordFailedAttempt(Request $request, ?User $user, ?string $attemptedIdentity): bool
@@ -54,7 +60,7 @@ class LoginProtectionService
         $blocked = $this->blockIp($request, $blockDuration, 'Too many failed login attempts');
 
         if ($blocked) {
-            SecurityEvent::record(
+            $event = SecurityEvent::record(
                 'Repeated failed authentication',
                 'authentication',
                 'High',
@@ -68,6 +74,24 @@ class LoginProtectionService
                 ],
                 'Multiple failed login attempts exceeded the configured threshold and triggered an automatic temporary block.'
             );
+
+            SecurityAlert::query()->create([
+                'alert_id' => SecurityAlert::generateAlertId(),
+                'title' => 'Brute-force login threshold exceeded',
+                'alert_type' => SecurityAlert::TYPE_BRUTE_FORCE,
+                'severity' => 'High',
+                'description' => "{$recentFailures} failed login attempts from {$ipAddress} exceeded the configured threshold of {$maxAttempts} within {$windowMinutes} minutes.",
+                'security_event_id' => $event->id,
+                'source_ip' => $ipAddress,
+                'metadata' => [
+                    'detection_rule' => 'repeated_authentication_threshold',
+                    'failed_attempt_count' => $recentFailures,
+                    'threshold' => $maxAttempts,
+                    'window_minutes' => $windowMinutes,
+                ],
+                'status' => 'new',
+                'occurred_at' => now(),
+            ]);
         }
 
         return true;
@@ -81,37 +105,31 @@ class LoginProtectionService
             return false;
         }
 
-        $existing = BlockedIp::query()->where('ip_address', $ipAddress)->where('status', 'active')->first();
+        $normalized = IpNetwork::normalize($ipAddress);
 
-        if ($existing && $existing->isActive()) {
+        if ($normalized === null) {
             return false;
         }
 
-        $blocked = BlockedIp::query()->create([
-            'ip_address' => $ipAddress,
-            'reason' => $reason,
-            'administrator_id' => null,
-            'blocked_at' => now(),
-            'expires_at' => now()->addMinutes($durationMinutes),
-            'status' => 'active',
-        ]);
+        // Reuse the central engine so automatic blocks deduplicate
+        // against manual/CIDR rules and keep full audit traceability.
+        if ($this->ipManagementService->findEnforcingBlock($normalized)) {
+            return false;
+        }
 
-        AuditLog::record(
-            'ip_blocked',
-            'blocked_ip',
-            'Blocked IP',
-            $blocked->id,
-            null,
-            [
-                'ip_address' => $ipAddress,
+        try {
+            $this->ipManagementService->createRule([
+                'ip_address' => $normalized,
+                'action' => BlockedIp::ACTION_BLOCK,
+                'is_enabled' => true,
+                'source' => 'automatic',
                 'reason' => $reason,
-                'expires_at' => $blocked->expires_at?->toISOString(),
-                'status' => 'active',
-            ],
-            'Temporary blocking was automatically applied after repeated failed authentication attempts.',
-            $ipAddress,
-            $request->user(),
-        );
+                'expires_at' => now()->addMinutes($durationMinutes),
+            ], $request->user(), $ipAddress);
+        } catch (\RuntimeException) {
+            // A concurrent request may have created the same active rule.
+            return false;
+        }
 
         return true;
     }

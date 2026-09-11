@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\BlockedIp;
 use App\Models\User;
 use App\Services\Security\AuthActivityLogger;
 use App\Services\Security\LoginProtectionService;
@@ -26,14 +25,6 @@ class AuthenticatedSessionController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
-
-        if (BlockedIp::isBlocked((string) $request->ip())) {
-            $logger->record($request, 'login', 'failed', null, $credentials['email'], 'ip_blocked');
-
-            throw ValidationException::withMessages([
-                'email' => 'This IP address is temporarily blocked due to repeated failed login attempts.',
-            ]);
-        }
 
         $user = User::query()->where('email', $credentials['email'])->first();
 

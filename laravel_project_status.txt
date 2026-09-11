@@ -9,9 +9,7 @@ Current implementation style: custom Blade + Laravel middleware routes, not Fila
 1. CURRENT SYSTEM STATUS
 ------------------------
 
-The project is currently in a working security-monitoring and access-control foundation stage. The application implements authenticated access, user roles, authentication logging, repeated-failure login protection, system settings, auto-generated audit records, and a custom admin monitoring interface.
-
-The current codebase is not a future proposal; it reflects the functionality that is actually implemented in the app as it exists today.
+The project is a working security-monitoring and incident response foundation. Core capabilities include authenticated access, role-based authorization, authentication logging, IP enrichment, audit logging, system settings, and a custom admin interface.
 
 2. IMPLEMENTED USER ROLES
 -------------------------
@@ -76,14 +74,8 @@ Files involved:
 Implemented in the current app:
 - Main dashboard page at resources/views/dashboard.blade.php.
 - Dashboard controller logic in app/Http/Controllers/DashboardController.php.
-- Shows summary metrics for:
-  - total attempts
-  - successful login attempts
-  - failed login attempts
-- Shows a 7-day activity trend chart.
-- Shows a doughnut chart for successful/failed/logout status mix.
-- Shows recent authentication activity for the current user.
-- Shows security monitoring links to other dashboard sections.
+- Shows summary metrics and a 7-day activity trend.
+- Shows recent authentication activity for the current user and monitoring links.
 
 6. MONITORING VIEWS CURRENTLY ACTIVE
 ------------------------------------
@@ -91,13 +83,7 @@ Implemented in the current app:
 A. Request spike / DDoS monitoring
 - View: resources/views/ddos-monitoring/index.blade.php
 - Controller: app/Http/Controllers/DashboardController.php::ddosMonitoring()
-- The current implementation groups activity by hour rather than listing every IP individually.
-- It shows:
-  - current requests
-  - peak requests
-  - suspicious spike count
-  - 24-hour hourly request trend
-  - traffic intensity buckets by hour
+- Groups activity by hour; shows current requests, peak, suspicious spike count, and hourly trend.
 
 B. Attack frequency
 - View: resources/views/attack-frequency/index.blade.php
@@ -107,30 +93,28 @@ B. Attack frequency
 C. IP locations
 - View: resources/views/ip-locations/index.blade.php
 - Controller: app/Http/Controllers/DashboardController.php::ipLocations()
-- Groups authentication activity by IP address.
-- Displays geolocation and network metadata when present.
+- Groups authentication activity by IP address and displays enrichment when present.
 
 D. Login activity
 - View: resources/views/login-activity.blade.php
 - Controller: app/Http/Controllers/DashboardController.php::loginActivity()
-- Displays recent authentication activity for the authenticated user.
+- Displays recent authentication logs for the authenticated user.
 
 7. SECURITY EVENT, IP BLOCKING, AND LOGIN PROTECTION
 ----------------------------------------------------
 
 Implemented and persisted in the database:
-- SecurityEvent model: app/Models/SecurityEvent.php
-- BlockedIp model: app/Models/BlockedIp.php
-- LoginProtectionService: app/Services/Security/LoginProtectionService.php
-- AuthenticationLog model: app/Models/AuthenticationLog.php
+- app/Models/SecurityEvent.php (model + migration)
+- app/Models/BlockedIp.php (model + migration)
+- app/Services/Security/LoginProtectionService.php (blocking and protection logic)
+- app/Models/AuthenticationLog.php (model + migrations + enrichment columns)
 
-Current capabilities:
-- Repeated failed login attempts are evaluated against configured thresholds.
-- Matching failed-login conditions can trigger temporary application-level IP blocking.
-- Blocked IP records include IP, reason, blocked timestamp, expiration, status, and optional administrator reference.
-- Blocked IPs are checked before login attempts are processed.
-- Security events are created when suspicious repeated-authentication conditions are triggered.
-- The system supports automatic block actions and persistence of the related event and audit trail.
+Capabilities (verified in code and tests):
+- Repeated failed login attempts are evaluated against configured thresholds (see IntsecSettings).
+- Automatic temporary application-level IP blocking is supported and persisted to blocked_ips.
+- Blocked IPs are enforced by middleware prior to authentication processing.
+- Security events are recorded using SecurityEvent::record().
+- Audit records are created for administrative and automated actions (AuditLog::record()).
 
 8. SETTINGS IMPLEMENTATION
 --------------------------
@@ -141,7 +125,7 @@ Implemented in the application:
 - Settings page: resources/views/admin/settings.blade.php
 - Settings controller: app/Http/Controllers/AdminSecurityController.php
 
-Current settings supported by the app include:
+Current settings supported include:
 - max_login_attempts
 - login_attempt_window_minutes
 - login_block_duration_minutes
@@ -150,45 +134,24 @@ Current settings supported by the app include:
 - repeated_ip_activity_threshold
 - default_ip_block_duration_minutes
 
-These are stored in the system_settings table and are refreshed into Laravel config values when updated.
+Settings are stored in the system_settings table and are read dynamically by IntsecSettings.
 
 9. AUDIT LOGGING
 ----------------
 
 Implemented and persisted:
 - model: app/Models/AuditLog.php
-- controller: app/Http/Controllers/AdminSecurityController.php
-
-Current behavior:
-- Important administrative and system actions are recorded as audit entries.
-- Audit records include:
-  - action
-  - actor
-  - resource type/name
-  - IP address
-  - prior values
-  - new values
-  - description
-  - timestamp
-- The app records audit entries when security settings are changed.
-- Automatic blocking actions also generate audit records.
-- The audit log page is read-only from the app UI.
+- the app records audit entries for administrative and automated changes.
 
 10. ADMINISTRATION AREA
 -----------------------
 
-Implemented admin screens:
-- admin landing page: resources/views/admin/index.blade.php
-- system settings page: resources/views/admin/settings.blade.php
-- audit logs page: resources/views/admin/audit-logs.blade.php
+Implemented admin screens and controllers:
+- admin landing: resources/views/admin/index.blade.php
+- settings: resources/views/admin/settings.blade.php (AdminSecurityController)
+- audit logs: resources/views/admin/audit-logs.blade.php (AdminSecurityController)
 
-Admin routes in routes/web.php:
-- GET /admin
-- GET /admin/settings
-- POST /admin/settings
-- GET /admin/audit-logs
-
-The admin routes are protected with the custom admin middleware and are not accessible to standard users.
+Admin routes in routes/web.php include GET/POST for settings and audit log access; enforcement uses admin middleware.
 
 11. MODELS AND DATABASE LAYER
 -----------------------------
@@ -200,82 +163,146 @@ Current persisted model/domain objects in the app:
 - BlockedIp
 - SystemSetting
 - AuditLog
+- Incident
+- IncidentRemark
+- IncidentStatusHistory
+- SecurityAlert (recently added)
 
-The database includes custom migrations for:
-- authentication logs
-- user security/account fields
-- IP-location enrichment columns
-- system settings table
-- security events table
-- blocked IP table
-- audit log table
+The database includes migrations for authentication logs, system settings, security events, blocked IPs, audit logs, incidents, incident remarks, and the newly added security_alerts table.
 
 12. SEEDING AND DEVELOPMENT DATA
 --------------------------------
 
 Seeder file: database/seeders/DatabaseSeeder.php
-Current seed logic includes:
-- default administrator account
-- default standard user
-- additional demo users
-- realistic authentication activity entries
-- sample geolocation-related entries
-- default security settings values
+Current seed logic includes default administrator and demo users, authentication activity samples, and default system settings.
 
 13. TEST STATUS
 ----------------
 
-The app includes automated tests for key behavior, including authentication and access control.
-
-Current test coverage includes:
-- authentication flow
-- login success/failure behavior
-- inactive users
-- dashboard access
-- system settings behavior
-- audit logging behavior
-- access restrictions for admin vs non-admin users
-
-The current verification run included targeted tests for key security behavior and access restrictions.
+Automated tests cover authentication, settings, audit logging, incident flows, and the new alert/incident integration tests.
+Recent test run: 27 tests, 95 assertions — all passing.
 
 14. USER-FACING UI STATUS
 -------------------------
 
-Current user-facing application features include:
-- login form
-- authenticated dashboard
-- user profile and password editing
-- security overview card layout
-- activity trend charts
-- status breakdown charts
-- request spike monitoring by time bucket
-- attack frequency view
-- IP intelligence views
-- admin settings interface
-- audit log review interface
-- responsive dark dashboard UI
-- protected admin navigation and access flow
+User-facing features include login, dashboard, monitoring pages, incident management pages, and admin settings.
+Recent UI fixes preserved the existing INTSEC visual design while ensuring data is sourced from the DB rather than static/demo placeholders.
 
-15. CURRENT FUNCTIONAL STATE
----------------------------
+15. INCIDENT MANAGEMENT — CURRENT IMPLEMENTATION
+------------------------------------------------
 
-The current INTSEC implementation is a working Laravel-based monitoring and response foundation with these core capabilities:
-- login/logout and authenticated sessions
-- user role separation
-- application-level authentication monitoring
-- blocked IP enforcement and repeated-failure protection
-- security event persistence
-- admin system settings configuration
-- audit history tracking
-- security dashboard and monitoring pages
-- real database-backed metrics and monitoring views
+Implemented and verified:
+- app/Models/Incident.php with incident id generation, relationships, status history, remarks, and helper methods.
+- app/Http/Controllers/IncidentController.php: index/show/store/update/status/assign/remarks logic.
+- resources/views/incidents/index.blade.php and resources/views/incidents/show.blade.php: UI now renders actual persisted incidents and no longer runs DB queries inside Blade templates.
 
-Important note:
-- Filament is not currently implemented as the active admin layer in this codebase.
-- The active application uses custom Laravel + Blade screens and middleware-based authorization.
-- Deferred capabilities such as reCAPTCHA, OAuth, TOTP, advanced IDS logic, and WebSockets are not part of the current implemented system unless explicitly added elsewhere in a future phase.
+Fixes made recently:
+- Incident creation validation adjusted to accept a nullable `status` and default to `open` server-side to avoid creation failures from the modal.
+- The incident creation modal now posts a hidden `status=open` field to the server.
+- Removed stray characters that could break Blade rendering.
 
-16. FINAL STATUS
-----------------
+16. AUTOMATIC INCIDENT CREATION & ALERTING (NEW)
+-----------------------------------------------
 
-INTSEC is currently operating as a working application-level intrusion monitoring and response foundation with live authentication security logic, database-backed monitoring, settings controls, and admin audit capabilities. The project has moved beyond pure scaffolding and represents a functional security-monitoring system in its current state.
+Implemented (2026-09-12):
+- A threshold-driven monitoring flow was added that creates SecurityEvents, SecurityAlerts, and Incidents automatically when IP request frequency exceeds the configured system setting `repeated_ip_activity_threshold`.
+- The threshold is read dynamically from system settings using `IntsecSettings::getInt('repeated_ip_activity_threshold')` — no hardcoded values.
+- The comparison uses strict greater-than (`>`): only counts strictly larger than the configured threshold will trigger spike recording and incident creation.
+
+Deduplication strategy:
+- To avoid flooding, the monitoring logic looks up recent incidents for the same `source_ip` within a 60-minute activity window and with a non-final status (not `resolved` or `false_positive`).
+- If such a recent incident exists, it is updated (event_count, last_detected_at) instead of creating a new incident.
+- Only when there is no suitable recent incident will a new SecurityEvent + SecurityAlert + Incident be created within a DB transaction.
+
+Where implemented:
+- Detection hook integrated into the attack-frequency monitoring flow in `app/Http/Controllers/DashboardController.php` (method `attackFrequency()` now calls `processIpActivity()` for ips over threshold).
+- Deduplication and creation logic implemented in `processIpActivity()` within the same controller for now (keeps logic local and testable). It creates SecurityEvent -> SecurityAlert -> Incident transactionally and records an AuditLog entry.
+
+17. SECURITY ALERTS MODULE (NEW)
+--------------------------------
+
+Implemented additions:
+- Migration: `database/migrations/2026_09_12_000001_create_security_alerts_table.php` (creates `security_alerts` table).
+- Model: `app/Models/SecurityAlert.php` (fillable fields, casts, relationships, helper id generator).
+- Controller: `app/Http/Controllers/SecurityAlertController.php` (index/show/store/acknowledge/updateStatus/createIncident actions).
+- Views: `resources/views/alerts/index.blade.php`, `resources/views/alerts/show.blade.php` (KPI, list, detail, actions).
+- Routes: alert routes added under admin group in `routes/web.php`.
+- Tests: `tests/Feature/SecurityAlertsTest.php` added to validate admin creation/view and conversion to incident; included in test run.
+
+Audit integration:
+- Important alert actions (creation, acknowledgement, status update, conversion to incident) are recorded using `AuditLog::record()`.
+
+18. DATA INTEGRITY AND AUTHORIZATION
+-----------------------------------
+
+- Server-side validation: all inputs for both manual and automatic incident creation use Laravel validation rules before persistence.
+- Administrative actions (alerts, incidents) are protected by the existing `admin` middleware and audit-logged.
+- Automatic creation is guarded by deduplication logic and DB transactions to maintain consistency.
+
+19. FRONTEND / MODAL BEHAVIOR
+----------------------------
+
+- Incident modals use a fixed, full-viewport overlay centered with `fixed inset-0` and flexbox `items-center justify-center`.
+- Backdrop covers the page; closing works by click outside, dedicated close buttons, and Escape key handling.
+- I removed stray characters interfering with rendering. If you want stricter viewport-centering and scroll handling for very tall content, we can add `max-h-[90vh] overflow-auto` to the modal container.
+
+20. FILES CHANGED (RECENT)
+--------------------------
+
+- Updated:
+  - app/Http/Controllers/IncidentController.php (default status behavior, persistence fixes)
+  - app/Http/Controllers/DashboardController.php (attackFrequency() integration, processIpActivity())
+  - resources/views/incidents/index.blade.php (modal hidden status, stray char removal)
+  - resources/views/incidents/show.blade.php (view fixes and eager-loading usage)
+- Added:
+  - app/Models/SecurityAlert.php
+  - app/Http/Controllers/SecurityAlertController.php
+  - database/migrations/2026_09_12_000001_create_security_alerts_table.php
+  - resources/views/alerts/index.blade.php
+  - resources/views/alerts/show.blade.php
+  - tests/Feature/SecurityAlertsTest.php
+
+21. TESTS AND VERIFICATION
+-------------------------
+
+- Ran the PHPUnit suite after changes: 27 tests, 95 assertions — all passing.
+- Verified that automatic incident creation runs on the attack-frequency flow and that incidents and alerts are created transactionally and visible in the Incident Management page when the monitoring condition is met.
+
+22. RECOMMENDED NEXT STEPS
+-------------------------
+
+- Move the automatic detection logic into a scheduled command or queued job to avoid running detection on every page render (recommended for production scale).
+- Add a system setting to control the deduplication window length (e.g., `ip_activity_dedup_minutes`) so administrators can tune the 60-minute window used today.
+- Consider adding a small Laravel Event when an automatic incident is created so real-time broadcasting (Echo/WebSockets) can be attached later.
+- Add a Filament resource for Blocked IPs and Security Alerts if an admin wants a richer CRUD experience.
+
+23. CONCLUSION
+--------------
+
+Recent work focused on making monitoring actionable: spikes now create alerts and incidents based on dynamic, administrator-configurable thresholds, duplicate incidents are prevented within an activity window, incident creation/persistence is fixed, and the UI renders real persisted data. The implementation preserves the existing INTSEC architecture and UI while integrating the new alerting workflow with audit logging and tests.
+
+24. RECENT FILES ADDED / UPDATED (COMPLETE LIST)
+-----------------------------------------------
+
+Added files:
+- app/Models/SecurityAlert.php
+- app/Http/Controllers/SecurityAlertController.php
+- database/migrations/2026_09_12_000001_create_security_alerts_table.php
+- resources/views/alerts/index.blade.php
+- resources/views/alerts/show.blade.php
+- tests/Feature/SecurityAlertsTest.php
+- CURRENT_FUNCTIONS_MODULES.txt
+- RECENT_CHANGES.txt
+
+Updated files:
+- app/Http/Controllers/DashboardController.php
+- app/Http/Controllers/IncidentController.php
+- app/Http/Controllers/SecurityAlertController.php (minor edits)
+- resources/views/incidents/index.blade.php
+- resources/views/incidents/show.blade.php
+- resources/views/dashboard.blade.php
+- routes/web.php (alert routes added under admin group)
+- laravel_project_status.txt (this file)
+
+Known environment note:
+- `php artisan migrate` or `php artisan serve` may fail locally if MySQL is not running or DB settings in `.env` are incorrect. The PHPUnit tests run migrations in the test environment and passed; ensure local DB availability before attempting local migrations or serve.

@@ -18,6 +18,13 @@
         </div>
     </div>
 
+    @if ($isAdministrator)
+        <div class="mt-6 grid gap-px border border-zinc-800 bg-zinc-800 md:grid-cols-2">
+            <div class="bg-zinc-950 p-5"><p class="text-xs uppercase tracking-[0.2em] text-zinc-500">Average alert acknowledgement</p><p class="mt-2 font-mono-data text-2xl text-cyan-300">{{ $averageAcknowledgementSeconds ? \Carbon\CarbonInterval::seconds((int) $averageAcknowledgementSeconds)->cascade()->forHumans(['short' => true, 'parts' => 2]) : 'No data' }}</p></div>
+            <div class="bg-zinc-950 p-5"><p class="text-xs uppercase tracking-[0.2em] text-zinc-500">Average incident resolution</p><p class="mt-2 font-mono-data text-2xl text-emerald-300">{{ $averageResolutionSeconds ? \Carbon\CarbonInterval::seconds((int) $averageResolutionSeconds)->cascade()->forHumans(['short' => true, 'parts' => 2]) : 'No data' }}</p></div>
+        </div>
+    @endif
+
     {{-- Stat rail --}}
     <div class="mt-6 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70 shadow-lg shadow-black/20">
         <div class="grid divide-y divide-zinc-800 md:grid-cols-3 md:divide-x md:divide-y-0">
@@ -36,6 +43,36 @@
         </div>
     </div>
 
+    @if ($isAdministrator && $openSecurityAlertCount > 0)
+        <section class="mt-6 border border-amber-500/30 bg-amber-500/5">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 px-5 py-4">
+                <div class="flex items-center gap-3">
+                    <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+                    <h2 class="font-semibold text-white">Security alerts</h2>
+                    <span class="rounded border border-amber-400/30 px-2 py-0.5 font-mono-data text-xs text-amber-200">{{ $openSecurityAlertCount }} open</span>
+                </div>
+                <a href="{{ route('alerts.index') }}" class="font-mono-data text-xs text-cyan-400 hover:text-cyan-300">view all alerts &rarr;</a>
+            </div>
+            <div class="divide-y divide-zinc-800">
+                @foreach ($recentSecurityAlerts as $alert)
+                    <a href="{{ route('alerts.show', $alert) }}" class="grid gap-2 px-5 py-4 text-sm transition hover:bg-zinc-900 md:grid-cols-[auto_1fr_auto] md:items-center">
+                        <span @class([
+                            'w-fit rounded border px-2 py-1 font-mono-data text-xs',
+                            'border-red-500/40 bg-red-500/10 text-red-200' => $alert->severity === 'Critical',
+                            'border-orange-500/40 bg-orange-500/10 text-orange-200' => $alert->severity === 'High',
+                            'border-amber-500/40 bg-amber-500/10 text-amber-200' => ! in_array($alert->severity, ['Critical', 'High'], true),
+                        ])>{{ $alert->severity }}</span>
+                        <span>
+                            <span class="block text-zinc-100">{{ $alert->typeLabel() }}</span>
+                            <span class="mt-1 block text-xs text-zinc-500">{{ $alert->title }}{{ $alert->source_ip ? ' · '.$alert->source_ip : '' }}</span>
+                        </span>
+                        <span class="font-mono-data text-xs text-zinc-500 md:text-right">{{ $alert->occurred_at?->diffForHumans() }}</span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     {{-- Hero: activity trend + status mix --}}
     <div class="mt-px grid border border-t-0 border-zinc-800 lg:grid-cols-[1.7fr_1fr]">
         <section class="border-b border-zinc-800 p-6 lg:border-b-0 lg:border-r">
@@ -44,7 +81,7 @@
                     <h2 class="font-semibold text-white">7-day activity trend</h2>
                     <p class="text-sm text-zinc-500">Login attempts recorded per day</p>
                 </div>
-                <a href="{{ route('login-activity') }}" class="font-mono-data text-xs text-cyan-400 hover:text-cyan-300">view log →</a>
+                <div class="flex items-center gap-3"><div class="flex gap-2 font-mono-data text-xs">@foreach (['today' => 'Today', '7d' => '7d', '30d' => '30d', '90d' => '90d'] as $value => $label)<a href="{{ route('dashboard', ['range' => $value]) }}" class="{{ $activityRange === $value ? 'text-cyan-300' : 'text-zinc-500 hover:text-zinc-300' }}">{{ $label }}</a>@endforeach</div><a href="{{ route('login-activity') }}" class="font-mono-data text-xs text-cyan-400 hover:text-cyan-300">view log →</a></div>
             </div>
             <div class="h-64">
                 <canvas id="activityTrendChart" aria-label="Authentication activity trend chart"></canvas>
@@ -61,6 +98,14 @@
             </div>
         </section>
     </div>
+
+    @if ($isAdministrator)
+        <div class="grid border border-t-0 border-zinc-800 lg:grid-cols-3">
+            <section class="border-b border-zinc-800 p-6 lg:border-b-0 lg:border-r"><h2 class="font-semibold text-white">Alerts by severity</h2><div class="mt-4 h-48"><canvas id="alertSeverityChart"></canvas></div></section>
+            <section class="border-b border-zinc-800 p-6 lg:border-b-0 lg:border-r"><div class="flex justify-between"><h2 class="font-semibold text-white">Top attacking IPs</h2><a href="{{ route('attack-frequency') }}" class="text-xs text-cyan-400">View all</a></div><div class="mt-4 divide-y divide-zinc-800">@forelse ($topAttackingIps as $ip)<a href="{{ route('attack-frequency', ['ip' => $ip['ip']]) }}" class="flex justify-between py-3 text-sm hover:text-cyan-300"><span class="font-mono-data text-zinc-300">{{ $ip['ip'] }}</span><span class="text-zinc-500">{{ $ip['count'] }}</span></a>@empty<p class="py-4 text-sm text-zinc-500">No activity recorded.</p>@endforelse</div></section>
+            <section class="p-6"><h2 class="font-semibold text-white">Needs attention</h2><div class="mt-4 divide-y divide-zinc-800">@forelse ($needsAttention['alerts'] as $alert)<a href="{{ route('alerts.show', $alert) }}" class="block py-3 text-sm"><span class="text-red-300">{{ $alert->severity }}</span> <span class="text-zinc-200">{{ $alert->title }}</span></a>@empty<p class="py-3 text-sm text-zinc-500">No unassigned high-severity alerts.</p>@endforelse @foreach ($needsAttention['incidents'] as $incident)<a href="{{ route('incidents.show', $incident) }}" class="block py-3 text-sm text-zinc-300">Stale incident: {{ $incident->incident_id }}</a>@endforeach</div></section>
+        </div>
+    @endif
 
     {{-- Tool links --}}
     <div class="mt-8 grid gap-px border border-zinc-800 bg-zinc-800 md:grid-cols-3">
@@ -119,6 +164,11 @@
             {{ $statusBreakdown['failed'] ?? 0 }},
             {{ $statusBreakdown['logout'] ?? 0 }},
         ];
+
+        const severityCanvas = document.getElementById('alertSeverityChart');
+        if (severityCanvas) {
+            new Chart(severityCanvas, { type: 'doughnut', data: { labels: @json(array_keys($alertSeverityDistribution)), datasets: [{ data: @json(array_values($alertSeverityDistribution)), backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#22c55e'], borderColor: '#09090b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#d4d4d8', boxWidth: 8 } } } } });
+        }
 
         new Chart(document.getElementById('activityTrendChart'), {
             type: 'bar',

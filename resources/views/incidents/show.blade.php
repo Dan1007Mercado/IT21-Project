@@ -83,6 +83,20 @@
                             <dd class="mt-1 text-zinc-200">{{ $incident->source_ip ?: '—' }}</dd>
                         </div>
                         <div>
+                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">IP Management decision</dt>
+                            <dd class="mt-1 text-zinc-200">
+                                @if (($ipDecision ?? null) === 'blocked')
+                                    <span class="inline-flex rounded-full border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-200">Blocked</span>
+                                @elseif (($ipDecision ?? null) === 'allowed')
+                                    <span class="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-200">Allowed</span>
+                                @elseif ($incident->source_ip)
+                                    <span class="text-xs text-zinc-400">No matching rule</span>
+                                @else
+                                    —
+                                @endif
+                            </dd>
+                        </div>
+                        <div>
                             <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Target account</dt>
                             <dd class="mt-1 text-zinc-200">{{ $incident->user?->name ?? '—' }}</dd>
                         </div>
@@ -103,6 +117,29 @@
                             <dd class="mt-1 text-zinc-200">{{ $incident->first_detected_at?->format('Y-m-d H:i:s') ?? '—' }}</dd>
                         </div>
                     </dl>
+                </div>
+
+                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
+                    <h2 class="text-lg font-semibold text-white">IP response actions</h2>
+                    @if ($incident->source_ip)
+                        <p class="mt-2 text-sm text-zinc-400">Source IP: <span class="font-mono text-zinc-200">{{ $incident->source_ip }}</span></p>
+                        @if (($ipRules ?? collect())->isNotEmpty())
+                            <ul class="mt-3 space-y-1 text-xs text-zinc-400">
+                                @foreach ($ipRules as $rule)
+                                    <li>Rule #{{ $rule->id }}: {{ $rule->ip_address }} — {{ ucfirst($rule->action) }} ({{ ucfirst($rule->source) }}, {{ $rule->is_enabled ? 'enabled' : 'disabled' }})</li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <p class="mt-3 text-xs text-zinc-500">No enforcing IP Management rule currently matches this IP.</p>
+                        @endif
+                        <form method="POST" action="{{ route('incidents.block-ip', $incident) }}" class="mt-4" onsubmit="return confirm('Block {{ $incident->source_ip }}? A BLOCK rule will be created in IP Management and a remark recorded here.');">
+                            @csrf
+                            <input type="hidden" name="expiration" value="permanent">
+                            <button type="submit" class="w-full rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20">Block source IP</button>
+                        </form>
+                    @else
+                        <p class="mt-2 text-sm text-zinc-400">No source IP recorded for this incident.</p>
+                    @endif
                 </div>
 
                 <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
@@ -141,7 +178,7 @@
                         <label class="block text-sm text-zinc-300">
                             Status
                             <select name="status" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                                @foreach (['open', 'investigating', 'contained', 'resolved', 'false_positive'] as $status)
+                                @foreach (['open', 'investigating', 'contained', 'resolved', 'closed'] as $status)
                                     <option value="{{ $status }}" {{ $incident->status === $status ? 'selected' : '' }}>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                                 @endforeach
                             </select>
@@ -172,7 +209,7 @@
                         <label class="block text-sm text-zinc-300">
                             Assign administrator
                             <select name="assigned_to" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                                @foreach (\App\Models\User::where('role', 'administrator')->get() as $admin)
+                                @foreach ($admins as $admin)
                                     <option value="{{ $admin->id }}" {{ $incident->assigned_to == $admin->id ? 'selected' : '' }}>{{ $admin->name }}</option>
                                 @endforeach
                             </select>

@@ -3,6 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuthenticationLog;
+use App\Models\AuditLog;
+use App\Models\SecurityAlert;
+use App\Models\Incident;
+use App\Services\Security\IntsecSettings;
+use App\Services\Security\IpActivityIncidentService;
 use App\Services\Security\IpWhoisService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -14,7 +19,10 @@ class DashboardController extends Controller
         $user = $request->user();
         $activityLogs = $user->authenticationLogs();
 
-        $sevenDayTrend = $this->buildSevenDayTrend($activityLogs);
+        $range = in_array($request->query('range'), ['today', '7d', '30d', '90d'], true)
+            ? $request->query('range')
+            : '7d';
+        $activityTrend = $this->buildActivityTrend($activityLogs, $range);
         $statusBreakdown = [
             'successful' => (clone $activityLogs)->where('status', 'successful')->count(),
             'failed' => (clone $activityLogs)->where('status', 'failed')->count(),
@@ -23,6 +31,26 @@ class DashboardController extends Controller
 
         $attackFrequency = $this->buildAttackFrequency()->take(12)->values()->all();
         $ipLocations = $this->prepareIpLocations();
+        $isAdministrator = $user->isAdministrator();
+        $openSecurityAlerts = $isAdministrator
+            ? SecurityAlert::query()
+                ->whereIn('status', ['new', 'acknowledged', 'investigating'])
+                ->latest('occurred_at')
+            : collect();
+        $severityDistribution = $isAdministrator
+            ? SecurityAlert::query()->selectRaw('severity, COUNT(*) as total')->whereIn('status', ['new', 'acknowledged', 'investigating'])
+                ->groupBy('severity')->pluck('total', 'severity')->all()
+            : [];
+        $needsAttention = $isAdministrator ? [
+            'alerts' => SecurityAlert::query()->with('assignedAdministrator')->whereNull('assigned_to')
+                ->whereIn('severity', ['Critical', 'High'])->whereIn('status', ['new', 'acknowledged', 'investigating'])->latest('occurred_at')->limit(5)->get(),
+            'incidents' => Incident::query()->whereIn('status', ['open', 'investigating', 'contained'])
+                ->where('last_detected_at', '<=', now()->subDay())->latest('last_detected_at')->limit(5)->get(),
+        ] : ['alerts' => collect(), 'incidents' => collect()];
+        $acknowledgementSeconds = $isAdministrator ? SecurityAlert::query()->whereNotNull('acknowledged_at')->get(['occurred_at', 'acknowledged_at'])
+            ->avg(fn (SecurityAlert $alert) => $alert->occurred_at?->diffInSeconds($alert->acknowledged_at)) : null;
+        $resolutionSeconds = $isAdministrator ? Incident::query()->whereNotNull('resolved_at')->get(['first_detected_at', 'resolved_at'])
+            ->avg(fn (Incident $incident) => $incident->first_detected_at?->diffInSeconds($incident->resolved_at)) : null;
 
         return view('dashboard', [
             'successfulLogins' => (clone $activityLogs)
@@ -38,10 +66,19 @@ class DashboardController extends Controller
                 ->latest('occurred_at')
                 ->limit(5)
                 ->get(),
-            'activityTrend' => $sevenDayTrend,
+            'activityTrend' => $activityTrend,
+            'activityRange' => $range,
             'statusBreakdown' => $statusBreakdown,
             'attackFrequency' => $attackFrequency,
             'ipLocations' => array_slice($ipLocations, 0, 12),
+            'isAdministrator' => $isAdministrator,
+            'openSecurityAlertCount' => $isAdministrator ? (clone $openSecurityAlerts)->count() : 0,
+            'recentSecurityAlerts' => $isAdministrator ? $openSecurityAlerts->limit(3)->get() : collect(),
+            'alertSeverityDistribution' => $severityDistribution,
+            'topAttackingIps' => array_slice($attackFrequency, 0, 5),
+            'needsAttention' => $needsAttention,
+            'averageAcknowledgementSeconds' => $acknowledgementSeconds,
+            'averageResolutionSeconds' => $resolutionSeconds,
         ]);
     }
 
@@ -106,7 +143,8 @@ class DashboardController extends Controller
 
         $currentRequests = $hourlyTrend->last()['count'] ?? 0;
         $peakRequests = $hourlyTrend->max(fn ($entry) => (int) $entry['count']) ?? 0;
-        $suspiciousSpikes = $hourlyTrend->filter(fn ($entry) => (int) $entry['count'] >= 10)->count();
+        $threshold = IntsecSettings::getInt('repeated_ip_activity_threshold', 10);
+        $suspiciousSpikes = $hourlyTrend->filter(fn ($entry) => (int) $entry['count'] > $threshold)->count();
 
         return view('ddos-monitoring.index', [
             'hourlyTrend' => $hourlyTrend,
@@ -116,7 +154,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function attackFrequency(Request $request): View
+    public function attackFrequency(Request $request, IpActivityIncidentService $ipActivityIncidentService): View
     {
         $attackFrequency = AuthenticationLog::query()
             ->selectRaw('ip_address, COUNT(*) as request_count')
@@ -133,6 +171,20 @@ class DashboardController extends Controller
             ];
         }));
 
+        // Process each IP for threshold-based alerting/incidents (idempotent)
+        $threshold = IntsecSettings::getInt('repeated_ip_activity_threshold', 10);
+
+        foreach ($attackFrequency->getCollection() as $row) {
+            try {
+                if (($row['count'] ?? 0) > $threshold) {
+                    $ipActivityIncidentService->evaluate($row['ip'], $row['count'], $threshold, $request->user(), $request->ip());
+                }
+            } catch (\Throwable $e) {
+                // Do not interrupt page rendering on error; log audit entry
+                AuditLog::record('alert_processing_error', 'attack_frequency', $row['ip'], null, null, ['error' => $e->getMessage()], 'Error processing automatic alert for IP', $request->ip(), $request->user());
+            }
+        }
+
         return view('attack-frequency.index', [
             'attackFrequency' => $attackFrequency,
         ]);
@@ -148,9 +200,17 @@ class DashboardController extends Controller
         ]);
     }
 
-    protected function buildSevenDayTrend($activityLogs): array
+    protected function buildActivityTrend($activityLogs, string $range): array
     {
-        return collect(range(6, 0))->map(function (int $daysAgo) use ($activityLogs) {
+        if ($range === 'today') {
+            return collect(range(0, 23))->map(function (int $hour) use ($activityLogs) {
+                return ['label' => sprintf('%02d:00', $hour), 'count' => (clone $activityLogs)->whereDate('occurred_at', now()->toDateString())->get()->filter(fn ($log) => $log->occurred_at?->hour === $hour)->count()];
+            })->all();
+        }
+
+        $days = ['7d' => 7, '30d' => 30, '90d' => 90][$range];
+
+        return collect(range($days - 1, 0))->map(function (int $daysAgo) use ($activityLogs) {
             $date = now()->subDays($daysAgo);
 
             return [

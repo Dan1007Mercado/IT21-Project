@@ -85,6 +85,11 @@ class Incident extends Model
         return $this->hasMany(IncidentRemark::class)->latest('created_at');
     }
 
+    public function alerts(): HasMany
+    {
+        return $this->hasMany(SecurityAlert::class);
+    }
+
     public function statusHistory(): HasMany
     {
         return $this->hasMany(IncidentStatusHistory::class)->latest('created_at');
@@ -132,6 +137,10 @@ class Incident extends Model
             $this->resolved_at = now();
         }
 
+        if ($newStatus === 'closed' && ! $this->resolved_at) {
+            $this->resolved_at = now();
+        }
+
         if ($newStatus === 'investigating' && ! $this->acknowledged_at) {
             $this->acknowledged_at = now();
         }
@@ -174,7 +183,7 @@ class Incident extends Model
                 $entries->push([
                     'timestamp' => $history->created_at,
                     'title' => 'Status changed',
-                    'detail' => ($history->previous_status ? ucfirst($history->previous_status) : 'Open').' → '.ucfirst($history->new_status).($history->reason ? ': '.$history->reason : ''),
+                    'detail' => ($history->previous_status ? ucfirst($history->previous_status) : 'Open').' -> '.ucfirst($history->new_status).($history->reason ? ': '.$history->reason : ''),
                     'type' => 'status',
                 ]);
             }

@@ -79,6 +79,9 @@ class SecuritySettingsAndAuditTest extends TestCase
         $this->assertDatabaseHas('blocked_ips', [
             'ip_address' => '203.0.113.25',
             'status' => 'active',
+            'action' => 'block',
+            'source' => 'automatic',
+            'is_enabled' => true,
         ]);
 
         $this->assertDatabaseHas('audit_logs', [
@@ -91,5 +94,15 @@ class SecuritySettingsAndAuditTest extends TestCase
             'status' => 'failed',
             'ip_address' => '203.0.113.25',
         ]);
+
+        $alert = \App\Models\SecurityAlert::query()->firstOrFail();
+        $this->assertSame(\App\Models\SecurityAlert::TYPE_BRUTE_FORCE, $alert->alert_type);
+        $this->assertSame('repeated_authentication_threshold', $alert->metadata['detection_rule']);
+        $this->assertSame(2, $alert->metadata['threshold']);
+
+        $this->actingAs($admin)
+            ->get('/alerts')
+            ->assertOk()
+            ->assertSee('Brute-force login attempts');
     }
 }

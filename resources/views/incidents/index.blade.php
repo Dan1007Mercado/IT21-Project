@@ -49,6 +49,22 @@
     </style>
 
     <div class="intsec-scope space-y-7" style="background-color: var(--ink);">
+        @if ($errors->any())
+            <div class="rounded-md border border-red-700 bg-red-950 px-4 py-3 text-sm text-red-100">
+                <p class="font-semibold">Incident was not saved.</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        @if (session('status') === 'incident-created')
+            <div class="rounded-md border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-100">
+                Incident created and saved to the database.
+            </div>
+        @endif
 
         {{-- Wayfinding + title --}}
         <div>
@@ -86,8 +102,8 @@
             </button>
         </div>
 
-        <div id="incident-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/80 p-4 backdrop-blur-sm">
-            <div class="w-full max-w-4xl rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-cyan-950/20">
+        <div id="incident-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center overflow-y-auto bg-zinc-950/80 p-4 backdrop-blur-sm">
+            <div class="my-8 max-h-[calc(100vh-4rem)] w-full max-w-4xl overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-cyan-950/20">
                 <div class="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
                     <div>
                         <p class="text-xs font-medium uppercase tracking-[0.2em] text-cyan-300">Create incident</p>
@@ -98,40 +114,41 @@
 
                 <form method="POST" action="{{ route('incidents.store') }}" class="space-y-5 p-5">
                     @csrf
+                    <input type="hidden" name="status" value="open">
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                             Title
-                            <input type="text" name="title" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
+                            <input type="text" name="title" value="{{ old('title') }}" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
                         </label>
                         <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                             Type
-                            <input type="text" name="incident_type" value="authentication" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-cyan-400 focus:outline-none">
+                            <input type="text" name="incident_type" value="{{ old('incident_type', 'authentication') }}" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-cyan-400 focus:outline-none">
                         </label>
                         <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                             Severity
                             <select name="severity" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-cyan-400 focus:outline-none">
                                 @foreach (['Normal', 'Warning', 'Suspicious', 'High', 'Critical'] as $level)
-                                    <option value="{{ $level }}">{{ $level }}</option>
+                                    <option value="{{ $level }}" {{ old('severity') === $level ? 'selected' : '' }}>{{ $level }}</option>
                                 @endforeach
                             </select>
                         </label>
                         <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                             Source IP
-                            <input type="text" name="source_ip" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
+                            <input type="text" name="source_ip" value="{{ old('source_ip') }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
                         </label>
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
                         <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                             Detection reason
-                            <input type="text" name="detection_reason" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
+                            <input type="text" name="detection_reason" value="{{ old('detection_reason') }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
                         </label>
                         <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                             Target user
                             <select name="user_id" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-cyan-400 focus:outline-none">
                                 <option value="">None</option>
-                                @foreach (\App\Models\User::orderBy('name')->get() as $user)
-                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                @foreach ($users as $user)
+                                    <option value="{{ $user->id }}" {{ (string) old('user_id') === (string) $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
                                 @endforeach
                             </select>
                         </label>
@@ -139,7 +156,7 @@
 
                     <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                         Description
-                        <textarea name="description" rows="4" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none"></textarea>
+                        <textarea name="description" rows="4" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">{{ old('description') }}</textarea>
                     </label>
 
                     <div class="flex justify-end gap-3 pt-2">
@@ -172,7 +189,7 @@
             <select name="status" class="rounded-md px-3 py-2 text-sm"
                 style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
                 <option value="">Status</option>
-                @foreach (['open','investigating','contained','resolved','false_positive'] as $status)
+                @foreach (['open','investigating','contained','resolved','closed'] as $status)
                     <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                 @endforeach
             </select>
@@ -191,6 +208,7 @@
                 const modal = document.getElementById('incident-modal');
                 const openBtn = document.getElementById('open-incident-modal');
                 const closeButtons = document.querySelectorAll('[data-close-incident-modal]');
+                const shouldOpenModal = @json($errors->any());
 
                 const openModal = () => {
                     if (!modal) return;
@@ -206,6 +224,10 @@
 
                 openBtn?.addEventListener('click', openModal);
                 closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+
+                if (shouldOpenModal) {
+                    openModal();
+                }
 
                 modal?.addEventListener('click', function (event) {
                     if (event.target === modal) {

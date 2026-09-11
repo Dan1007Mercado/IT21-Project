@@ -2,15 +2,18 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\Security\LoginProtectionService;
+use App\Services\Security\IpManagementService;
+use App\Services\Security\AuthActivityLogger;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class EnsureIpNotBlocked
 {
-    public function __construct(protected LoginProtectionService $loginProtectionService)
+    public function __construct(
+        protected IpManagementService $ipManagementService,
+        protected AuthActivityLogger $authActivityLogger,
+    )
     {
     }
 
@@ -19,7 +22,20 @@ class EnsureIpNotBlocked
      */
     public function handle(Request $request, Closure $next): SymfonyResponse
     {
-        if ($this->loginProtectionService->isBlocked($request)) {
+        // Centralized IP access-control decision (CIDR-aware, deny-wins).
+        if ($this->ipManagementService->isBlocked($request->ip() ?? '')) {
+            // Telemetry must not make access-control enforcement wait for an
+            // external IP intelligence lookup.
+            $this->authActivityLogger->record(
+                $request,
+                'login',
+                'failed',
+                null,
+                $request->input('email'),
+                'ip_blocked',
+                false,
+            );
+
             return response()->json([
                 'message' => 'This IP address is temporarily blocked due to repeated failed login attempts.',
             ], 429);

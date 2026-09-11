@@ -25,7 +25,12 @@
                         <p class="px-3 text-xs font-medium uppercase text-zinc-600">Security monitoring</p>
                         <div class="mt-2 space-y-1">
                             <a href="{{ route('ddos-monitoring') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('ddos-monitoring'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('ddos-monitoring')])>DDoS / request spikes</a>
-                            <a href="{{ route('attack-frequency') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('attack-frequency'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('attack-frequency')])>Attack frequency</a>
+                            <a href="{{ route('attack-frequency') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('attack-frequency'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('attack-frequency')])>IP Request Frequency</a>
+                            @if (auth()->user()?->isAdministrator())
+                                <a href="{{ route('ip-management.index') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('ip-management.*'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('ip-management.*')])>IP management</a>
+                                <a href="{{ route('alerts.index') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('alerts.*'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('alerts.*')])>Security alerts</a>
+                                <a href="{{ route('incidents.index') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('incidents.*'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('incidents.*')])>Incident management</a>
+                            @endif
                         </div>
                     </section>
 
@@ -55,7 +60,6 @@
                             <p class="px-3 text-xs font-medium uppercase text-zinc-600">Administration</p>
                             <div class="mt-2 space-y-1">
                                 <a href="{{ route('admin.index') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('admin.index'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('admin.index')])>Admin monitoring</a>
-                                <a href="{{ route('incidents.index') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('incidents.*'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('incidents.*')])>Incident management</a>
                                 <a href="{{ route('admin.settings') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('admin.settings'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('admin.settings')])>System settings</a>
                                 <a href="{{ route('admin.audit-logs') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('admin.audit-logs'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('admin.audit-logs')])>Audit logs</a>
                             </div>
@@ -89,12 +93,16 @@
                             <a href="{{ route('dashboard') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Dashboard</a>
                             <a href="{{ route('ddos-monitoring') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">DDoS / request spikes</a>
                             <a href="{{ route('attack-frequency') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Attack frequency</a>
+                            @if (auth()->user()?->isAdministrator())
+                                <a href="{{ route('ip-management.index') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">IP management</a>
+                                <a href="{{ route('alerts.index') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Security alerts</a>
+                                <a href="{{ route('incidents.index') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Incident management</a>
+                            @endif
                             <a href="{{ route('ip-locations') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">IP locations</a>
                             <a href="{{ route('login-activity') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Login activity</a>
                             <a href="{{ route('profile.edit') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Profile & password</a>
                             @if (auth()->user()?->isAdministrator())
                                 <a href="{{ route('admin.index') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Admin monitoring</a>
-                                <a href="{{ route('incidents.index') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Incident management</a>
                                 <a href="{{ route('admin.settings') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">System settings</a>
                                 <a href="{{ route('admin.audit-logs') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Audit logs</a>
                             @endif
