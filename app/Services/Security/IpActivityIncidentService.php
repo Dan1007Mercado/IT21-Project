@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 class IpActivityIncidentService
 {
-    public function evaluate(string $ipAddress, int $activityCount, ?int $threshold = null, ?User $actor = null, ?string $actorIp = null): ?Incident
+    public function evaluate(string $ipAddress, int $activityCount, ?int $threshold = null, ?User $actor = null, ?string $actorIp = null, ?SecurityEvent $securityEvent = null): ?Incident
     {
         $threshold ??= IntsecSettings::getInt('repeated_ip_activity_threshold', 10);
 
@@ -54,11 +54,11 @@ class IpActivityIncidentService
             return $existing;
         }
 
-        return DB::transaction(function () use ($ipAddress, $activityCount, $threshold, $actor, $actorIp): Incident {
+        return DB::transaction(function () use ($ipAddress, $activityCount, $threshold, $actor, $actorIp, $securityEvent): Incident {
             $title = "Request spike detected from {$ipAddress}";
             $severity = $this->severityFor($activityCount, $threshold);
 
-            $event = SecurityEvent::record(
+            $event = $securityEvent ?? SecurityEvent::record(
                 $title,
                 'ip_activity_spike',
                 $severity,

@@ -8,4 +8,6 @@ return [
     'repeated_authentication_threshold' => env('INTSEC_REPEATED_AUTHENTICATION_THRESHOLD', 5),
     'repeated_ip_activity_threshold' => env('INTSEC_REPEATED_IP_ACTIVITY_THRESHOLD', 10),
     'default_ip_block_duration_minutes' => env('INTSEC_DEFAULT_IP_BLOCK_DURATION_MINUTES', 60),
+    'api_token' => env('INTSEC_API_TOKEN'),
+    'event_sources' => array_filter(explode(',', (string) env('INTSEC_EVENT_SOURCES', 'hotel-booking'))),
 ];

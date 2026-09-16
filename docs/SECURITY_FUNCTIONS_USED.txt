@@ -1,0 +1,137 @@
+INTSEC SECURITY FUNCTIONS IN USE
+================================
+
+This file lists the security-related functions currently used in the codebase, along with where they are located.
+
+1) Route-level login throttling
+   Security function name: throttle:5,1
+   Description: Limits the number of login requests accepted from the same client to 5 attempts per 1 minute to reduce brute-force attacks.
+   Location: routes/web.php
+   Notes:
+   - Applied to the POST /login route in the guest middleware group.
+   - This is Laravel's built-in request throttle middleware.
+
+2) Blocked-IP enforcement before login
+   Security function name: EnsureIpNotBlocked::handle()
+   Description: Checks whether the client IP is currently blocked and rejects the request with HTTP 429 if so, preventing access from banned addresses.
+   Class: App\Http\Middleware\EnsureIpNotBlocked
+   Method: handle(Request $request, Closure $next)
+   Location: app/Http/Middleware/EnsureIpNotBlocked.php
+   Purpose:
+   - Checks whether the request IP is currently blocked.
+   - If blocked, logs a failed login event and returns HTTP 429.
+   - This is the access-control gate used before allowing login attempts.
+
+3) Central IP access-control decision engine
+   Security function name: IpManagementService::decide(), IpManagementService::isBlocked(), IpManagementService::isAllowed()
+   Description: Evaluates active IP rules using a deny-wins policy to decide whether an IP is blocked, allowed, or neutral.
+   Class: App\Services\Security\IpManagementService
+   Methods:
+   - decide(string $ip, bool $recordMatch = true)
+   - isBlocked(string $ip)
+   - isAllowed(string $ip)
+   - matchingRules(string $ip)
+   - createRule(array $data, ?User $actor = null, ?string $requestIp = null)
+   - updateRule(BlockedIp $rule, array $data, ?User $actor = null, ?string $requestIp = null)
+   - setEnabled(BlockedIp $rule, bool $enabled, ?User $actor = null, ?string $requestIp = null)
+   - deleteRule(BlockedIp $rule, ?User $actor = null, ?string $requestIp = null)
+   Location: app/Services/Security/IpManagementService.php
+   Purpose:
+   - Centralized deny-wins IP policy engine.
+   - Resolves whether an IP is blocked, allowed, or neutral.
+   - Manages manual and automatic block rules.
+
+4) Authentication activity logging
+   Security function name: AuthActivityLogger::record()
+   Description: Records login/logout activity and related investigation data such as IP, user agent, route, method, and optional geo-location metadata.
+   Class: App\Services\Security\AuthActivityLogger
+   Method: record(Request $request, string $action, string $status, ?User $user = null, ?string $attemptedIdentity = null, ?string $failureReason = null, bool $withIpIntelligence = true)
+   Location: app/Services/Security/AuthActivityLogger.php
+   Purpose:
+   - Stores login/logout activity in AuthenticationLog.
+   - Captures IP, user agent, route, method, timestamp, and optional geo/IP intelligence.
+   - Used for investigation and security telemetry.
+
+5) Failed-login brute-force detection and temporary blocking
+   Security function name: LoginProtectionService::recordFailedAttempt(), LoginProtectionService::blockIp()
+   Description: Tracks repeated failed login attempts, compares them against configured thresholds, and auto-blocks the offending IP when limits are exceeded.
+   Class: App\Services\Security\LoginProtectionService
+   Methods:
+   - isBlocked(Request $request)
+   - recordFailedAttempt(Request $request, ?User $user, ?string $attemptedIdentity): bool
+   - blockIp(Request $request, int $durationMinutes, string $reason): bool
+   - unblockIp(Request $request, BlockedIp $blockedIp, string $reason = 'Administrative unblock', ?User $administrator = null): void
+   Location: app/Services/Security/LoginProtectionService.php
+   Purpose:
+   - Counts repeated failed login attempts within a configured time window.
+   - Triggers automatic IP block when threshold is exceeded.
+   - Creates security event and alert records after a brute-force threshold breach.
+
+6) Security event creation and persistence
+   Security function name: SecurityEvent::record()
+   Description: Creates and stores a security event with severity, source IP, user association, and metadata for investigation and alerting.
+   Class: App\Models\SecurityEvent
+   Static method: record(string $title, string $eventType, string $severity, ?User $user = null, ?string $sourceIp = null, ?array $metadata = null, ?string $description = null, ?string $source = null, ?string $externalEventId = null)
+   Location: app/Models/SecurityEvent.php
+   Purpose:
+   - Persists security-relevant events into the security_events table.
+   - Used to create events for repeated failed authentication, alerts, and incident-related activity.
+
+7) Authentication log model storage
+   Security function name: AuthenticationLog model data capture
+   Description: Stores record entries for each authentication action, including success/failure state, attempted identity, IP, and request information for audit and investigation.
+   Class: App\Models\AuthenticationLog
+   Location: app/Models/AuthenticationLog.php
+   Purpose:
+   - Stores login/logout attempts, user identity, source IP, status, failure reason, method, route, and timestamps.
+   - The actual data is written by AuthActivityLogger::record() and by failed login handling.
+
+8) Login controller enforcement path
+   Security function name: AuthenticatedSessionController::store()
+   Description: Validates credentials, attempts sign-in, records failed attempts, and logs successful or failed authentication events.
+   Class: App\Http\Controllers\Auth\AuthenticatedSessionController
+   Method: store(Request $request, AuthActivityLogger $logger, LoginProtectionService $loginProtectionService)
+   Location: app/Http/Controllers/Auth/AuthenticatedSessionController.php
+   Purpose:
+   - Validates login credentials.
+   - Calls LoginProtectionService::recordFailedAttempt() on invalid credentials.
+   - Logs success/failure in authentication logs.
+
+9) Security alert creation from login abuse
+   Security function name: SecurityAlert creation / alerting
+   Description: Generates a security alert when failed-login thresholds are exceeded so administrators can investigate suspicious authentication activity.
+   Class: App\Models\SecurityAlert
+   Location: app/Models/SecurityAlert.php
+   Purpose:
+   - Used by LoginProtectionService::recordFailedAttempt() to create alert records when brute-force thresholds are crossed.
+
+10) Audit logging for security actions
+   Security function name: AuditLog::record()
+   Description: Persists a historical audit trail of important security actions such as IP blocking, rule changes, and alert updates for compliance and investigation.
+   Class: App\Models\AuditLog
+   Static method: record(...)
+   Location: app/Models/AuditLog.php
+   Purpose:
+   - Records security-related administrative and operational actions such as IP rule creation, updates, block/unblock actions, and alert processing.
+   - Used throughout the security-related services.
+
+PRIMARY LOCATIONS TO CHECK
+-------------------------
+- Login throttle: routes/web.php
+- Login protection logic: app/Services/Security/LoginProtectionService.php
+- IP blocking enforcement: app/Services/Security/IpManagementService.php
+- Middleware guard: app/Http/Middleware/EnsureIpNotBlocked.php
+- Auth telemetry: app/Services/Security/AuthActivityLogger.php
+- Security event recording: app/Models/SecurityEvent.php
+- Authentication log model: app/Models/AuthenticationLog.php
+
+SUMMARY
+-------
+The main security functions used in this project are centered on the login flow, IP block enforcement, and security event/audit logging. The most important files to inspect are:
+- routes/web.php
+- app/Http/Middleware/EnsureIpNotBlocked.php
+- app/Services/Security/LoginProtectionService.php
+- app/Services/Security/IpManagementService.php
+- app/Services/Security/AuthActivityLogger.php
+- app/Models/SecurityEvent.php
+- app/Models/AuthenticationLog.php

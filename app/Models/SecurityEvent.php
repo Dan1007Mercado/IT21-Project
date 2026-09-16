@@ -11,6 +11,8 @@ class SecurityEvent extends Model
 
     protected $fillable = [
         'title',
+        'source',
+        'external_event_id',
         'event_type',
         'severity',
         'description',
@@ -39,9 +41,13 @@ class SecurityEvent extends Model
         ?string $sourceIp = null,
         ?array $metadata = null,
         ?string $description = null,
+        ?string $source = null,
+        ?string $externalEventId = null,
     ): self {
         return static::query()->create([
             'title' => $title,
+            'source' => $source,
+            'external_event_id' => $externalEventId,
             'event_type' => $eventType,
             'severity' => $severity,
             'description' => $description ?? $title,
