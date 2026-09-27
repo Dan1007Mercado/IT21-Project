@@ -6,8 +6,8 @@
         </div>
         <div class="flex flex-wrap gap-2 text-xs text-zinc-300">
             <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Unique IPs: {{ $ipLocations->total() }}</span>
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Countries: {{ count(array_unique(array_filter(array_map(fn ($entry) => $entry['country_code'] ?? null, $ipLocations->items())))) }}</span>
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Cities: {{ count(array_unique(array_filter(array_map(fn ($entry) => $entry['city'] ?? null, $ipLocations->items())))) }}</span>
+            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Countries: {{ $countryCount }}</span>
+            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Cities: {{ $cityCount }}</span>
         </div>
     </div>
 
@@ -65,7 +65,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
-        const ipLocations = @json($ipLocations->items());
+        const ipLocations = @json($mapLocations ?? $ipLocations->items());
         const mapElement = document.getElementById('ip-location-map');
         const emptyState = document.getElementById('ip-location-empty');
 
@@ -75,7 +75,8 @@
                 const longitude = Number(entry.longitude);
                 return Number.isFinite(latitude) && Number.isFinite(longitude)
                     && latitude >= -90 && latitude <= 90
-                    && longitude >= -180 && longitude <= 180;
+                    && longitude >= -180 && longitude <= 180
+                    && !(latitude === 0 && longitude === 0);
             });
 
             if (validLocations.length > 0) {
@@ -107,25 +108,73 @@
                     const latitude = Number(first.latitude);
                     const longitude = Number(first.longitude);
                     const totalEvents = entries.reduce((sum, entry) => sum + (Number(entry.event_count) || 0), 0);
-                    const popupContent = `
-                        <div style="min-width: 220px; color: #0f172a; line-height: 1.5;">
-                            <div style="font-weight: 700; margin-bottom: 6px;">Approximate IP Location</div>
-                            <div><strong>IP:</strong> ${entries.map((entry) => entry.ip).join('<br>')}</div>
-                            <div><strong>City:</strong> ${first.city ?? 'Unknown city'}</div>
-                            <div><strong>Region:</strong> ${first.region ?? 'Unknown region'}</div>
-                            <div><strong>Country:</strong> ${first.country ?? 'Unknown country'}</div>
-                            <div><strong>ISP:</strong> ${first.isp ?? 'Unknown ISP'}</div>
-                            <div><strong>Organization:</strong> ${first.organization ?? 'Unknown organization'}</div>
-                            <div><strong>ASN:</strong> ${first.asn ?? 'Unknown'}</div>
-                            <div><strong>Timezone:</strong> ${first.timezone ?? 'Unknown time zone'}</div>
-                            <div><strong>Security Events:</strong> ${totalEvents}</div>
-                            <div><strong>Last Seen:</strong> ${first.last_seen ? new Date(first.last_seen).toLocaleString() : 'Unknown'}</div>
-                        </div>
-                    `;
+                    const ipList = entries.map((entry) => entry.ip || 'Unknown IP').filter(Boolean);
+                    const popupContainer = document.createElement('div');
+                    popupContainer.style.minWidth = '220px';
+                    popupContainer.style.color = '#0f172a';
+                    popupContainer.style.lineHeight = '1.5';
+
+                    const title = document.createElement('div');
+                    title.style.fontWeight = '700';
+                    title.style.marginBottom = '6px';
+                    title.textContent = 'Approximate IP Location';
+                    popupContainer.appendChild(title);
+
+                    const ipRow = document.createElement('div');
+                    ipRow.innerHTML = '<strong>IP:</strong> '; 
+                    const ipText = document.createElement('span');
+                    ipText.textContent = ipList.length ? ipList.join(', ') : 'Unknown IP';
+                    ipRow.appendChild(ipText);
+                    popupContainer.appendChild(ipRow);
+
+                    const cityRow = document.createElement('div');
+                    cityRow.innerHTML = '<strong>City:</strong> ';
+                    cityRow.appendChild(document.createTextNode(first.city || 'Unknown city'));
+                    popupContainer.appendChild(cityRow);
+
+                    const regionRow = document.createElement('div');
+                    regionRow.innerHTML = '<strong>Region:</strong> ';
+                    regionRow.appendChild(document.createTextNode(first.region || 'Unknown region'));
+                    popupContainer.appendChild(regionRow);
+
+                    const countryRow = document.createElement('div');
+                    countryRow.innerHTML = '<strong>Country:</strong> ';
+                    countryRow.appendChild(document.createTextNode(first.country || 'Unknown country'));
+                    popupContainer.appendChild(countryRow);
+
+                    const ispRow = document.createElement('div');
+                    ispRow.innerHTML = '<strong>ISP:</strong> ';
+                    ispRow.appendChild(document.createTextNode(first.isp || 'Unknown ISP'));
+                    popupContainer.appendChild(ispRow);
+
+                    const orgRow = document.createElement('div');
+                    orgRow.innerHTML = '<strong>Organization:</strong> ';
+                    orgRow.appendChild(document.createTextNode(first.organization || 'Unknown organization'));
+                    popupContainer.appendChild(orgRow);
+
+                    const asnRow = document.createElement('div');
+                    asnRow.innerHTML = '<strong>ASN:</strong> ';
+                    asnRow.appendChild(document.createTextNode(first.asn || 'Unknown'));
+                    popupContainer.appendChild(asnRow);
+
+                    const timezoneRow = document.createElement('div');
+                    timezoneRow.innerHTML = '<strong>Timezone:</strong> ';
+                    timezoneRow.appendChild(document.createTextNode(first.timezone || 'Unknown time zone'));
+                    popupContainer.appendChild(timezoneRow);
+
+                    const countRow = document.createElement('div');
+                    countRow.innerHTML = '<strong>Security Events:</strong> ';
+                    countRow.appendChild(document.createTextNode(String(totalEvents)));
+                    popupContainer.appendChild(countRow);
+
+                    const lastSeenRow = document.createElement('div');
+                    lastSeenRow.innerHTML = '<strong>Last Seen:</strong> ';
+                    lastSeenRow.appendChild(document.createTextNode(first.last_seen ? new Date(first.last_seen).toLocaleString() : 'Unknown'));
+                    popupContainer.appendChild(lastSeenRow);
 
                     L.marker([latitude, longitude])
                         .addTo(map)
-                        .bindPopup(popupContent);
+                        .bindPopup(popupContainer);
 
                     markers.push([latitude, longitude]);
                 });

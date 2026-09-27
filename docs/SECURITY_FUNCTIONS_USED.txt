@@ -1,137 +1,482 @@
 INTSEC SECURITY FUNCTIONS IN USE
 ================================
 
-This file lists the security-related functions currently used in the codebase, along with where they are located.
+This file reflects the currently active security controls in the project as implemented in the app code.
 
-1) Route-level login throttling
-   Security function name: throttle:5,1
-   Description: Limits the number of login requests accepted from the same client to 5 attempts per 1 minute to reduce brute-force attacks.
-   Location: routes/web.php
-   Notes:
-   - Applied to the POST /login route in the guest middleware group.
-   - This is Laravel's built-in request throttle middleware.
+CURRENT ACTIVE SECURITY FLOW
+----------------------------
+The live protection path is:
 
-2) Blocked-IP enforcement before login
-   Security function name: EnsureIpNotBlocked::handle()
-   Description: Checks whether the client IP is currently blocked and rejects the request with HTTP 429 if so, preventing access from banned addresses.
-   Class: App\Http\Middleware\EnsureIpNotBlocked
-   Method: handle(Request $request, Closure $next)
-   Location: app/Http/Middleware/EnsureIpNotBlocked.php
-   Purpose:
-   - Checks whether the request IP is currently blocked.
-   - If blocked, logs a failed login event and returns HTTP 429.
-   - This is the access-control gate used before allowing login attempts.
+1. Login route is protected with Laravel request throttling.
+2. A middleware checks whether the requester IP is currently blocked.
+3. The login controller records failed/successful logins.
+4. Repeated failed attempts trigger brute-force protection.
+5. The IP management service creates/updates the block rule.
+6. Security events and alerts are stored for investigation.
+7. Audit records are written for administrative and security actions.
 
-3) Central IP access-control decision engine
-   Security function name: IpManagementService::decide(), IpManagementService::isBlocked(), IpManagementService::isAllowed()
-   Description: Evaluates active IP rules using a deny-wins policy to decide whether an IP is blocked, allowed, or neutral.
-   Class: App\Services\Security\IpManagementService
-   Methods:
-   - decide(string $ip, bool $recordMatch = true)
-   - isBlocked(string $ip)
-   - isAllowed(string $ip)
-   - matchingRules(string $ip)
-   - createRule(array $data, ?User $actor = null, ?string $requestIp = null)
-   - updateRule(BlockedIp $rule, array $data, ?User $actor = null, ?string $requestIp = null)
-   - setEnabled(BlockedIp $rule, bool $enabled, ?User $actor = null, ?string $requestIp = null)
-   - deleteRule(BlockedIp $rule, ?User $actor = null, ?string $requestIp = null)
-   Location: app/Services/Security/IpManagementService.php
-   Purpose:
-   - Centralized deny-wins IP policy engine.
-   - Resolves whether an IP is blocked, allowed, or neutral.
-   - Manages manual and automatic block rules.
+1) ROUTE-LEVEL LOGIN THROTTLING
+--------------------------------
+File: routes/web.php
+Code:
 
-4) Authentication activity logging
-   Security function name: AuthActivityLogger::record()
-   Description: Records login/logout activity and related investigation data such as IP, user agent, route, method, and optional geo-location metadata.
-   Class: App\Services\Security\AuthActivityLogger
-   Method: record(Request $request, string $action, string $status, ?User $user = null, ?string $attemptedIdentity = null, ?string $failureReason = null, bool $withIpIntelligence = true)
-   Location: app/Services/Security/AuthActivityLogger.php
-   Purpose:
-   - Stores login/logout activity in AuthenticationLog.
-   - Captures IP, user agent, route, method, timestamp, and optional geo/IP intelligence.
-   - Used for investigation and security telemetry.
+Route::middleware('guest')->group(function (): void {
+    Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+    Route::post('/login', [AuthenticatedSessionController::class, 'store'])
+        ->middleware(['throttle:5,1', EnsureIpNotBlocked::class])
+        ->name('login.store');
+});
 
-5) Failed-login brute-force detection and temporary blocking
-   Security function name: LoginProtectionService::recordFailedAttempt(), LoginProtectionService::blockIp()
-   Description: Tracks repeated failed login attempts, compares them against configured thresholds, and auto-blocks the offending IP when limits are exceeded.
-   Class: App\Services\Security\LoginProtectionService
-   Methods:
-   - isBlocked(Request $request)
-   - recordFailedAttempt(Request $request, ?User $user, ?string $attemptedIdentity): bool
-   - blockIp(Request $request, int $durationMinutes, string $reason): bool
-   - unblockIp(Request $request, BlockedIp $blockedIp, string $reason = 'Administrative unblock', ?User $administrator = null): void
-   Location: app/Services/Security/LoginProtectionService.php
-   Purpose:
-   - Counts repeated failed login attempts within a configured time window.
-   - Triggers automatic IP block when threshold is exceeded.
-   - Creates security event and alert records after a brute-force threshold breach.
+Purpose:
+- Limits login attempts to 5 per 1 minute.
+- Applies the custom blocked-IP check before the login controller runs.
 
-6) Security event creation and persistence
-   Security function name: SecurityEvent::record()
-   Description: Creates and stores a security event with severity, source IP, user association, and metadata for investigation and alerting.
-   Class: App\Models\SecurityEvent
-   Static method: record(string $title, string $eventType, string $severity, ?User $user = null, ?string $sourceIp = null, ?array $metadata = null, ?string $description = null, ?string $source = null, ?string $externalEventId = null)
-   Location: app/Models/SecurityEvent.php
-   Purpose:
-   - Persists security-relevant events into the security_events table.
-   - Used to create events for repeated failed authentication, alerts, and incident-related activity.
+2) BLOCKED-IP ENFORCEMENT BEFORE LOGIN
+--------------------------------------
+File: app/Http/Middleware/EnsureIpNotBlocked.php
+Code:
 
-7) Authentication log model storage
-   Security function name: AuthenticationLog model data capture
-   Description: Stores record entries for each authentication action, including success/failure state, attempted identity, IP, and request information for audit and investigation.
-   Class: App\Models\AuthenticationLog
-   Location: app/Models/AuthenticationLog.php
-   Purpose:
-   - Stores login/logout attempts, user identity, source IP, status, failure reason, method, route, and timestamps.
-   - The actual data is written by AuthActivityLogger::record() and by failed login handling.
+class EnsureIpNotBlocked
+{
+    public function __construct(
+        protected IpManagementService $ipManagementService,
+        protected AuthActivityLogger $authActivityLogger,
+    ) {}
 
-8) Login controller enforcement path
-   Security function name: AuthenticatedSessionController::store()
-   Description: Validates credentials, attempts sign-in, records failed attempts, and logs successful or failed authentication events.
-   Class: App\Http\Controllers\Auth\AuthenticatedSessionController
-   Method: store(Request $request, AuthActivityLogger $logger, LoginProtectionService $loginProtectionService)
-   Location: app/Http/Controllers/Auth/AuthenticatedSessionController.php
-   Purpose:
-   - Validates login credentials.
-   - Calls LoginProtectionService::recordFailedAttempt() on invalid credentials.
-   - Logs success/failure in authentication logs.
+    public function handle(Request $request, Closure $next): SymfonyResponse
+    {
+        if ($this->ipManagementService->isBlocked($request->ip() ?? '')) {
+            $this->authActivityLogger->record(
+                $request,
+                'login',
+                'failed',
+                null,
+                $request->input('email'),
+                'ip_blocked',
+                false,
+            );
 
-9) Security alert creation from login abuse
-   Security function name: SecurityAlert creation / alerting
-   Description: Generates a security alert when failed-login thresholds are exceeded so administrators can investigate suspicious authentication activity.
-   Class: App\Models\SecurityAlert
-   Location: app/Models/SecurityAlert.php
-   Purpose:
-   - Used by LoginProtectionService::recordFailedAttempt() to create alert records when brute-force thresholds are crossed.
+            return response()->json([
+                'message' => 'This IP address is temporarily blocked due to repeated failed login attempts.',
+            ], 429);
+        }
 
-10) Audit logging for security actions
-   Security function name: AuditLog::record()
-   Description: Persists a historical audit trail of important security actions such as IP blocking, rule changes, and alert updates for compliance and investigation.
-   Class: App\Models\AuditLog
-   Static method: record(...)
-   Location: app/Models/AuditLog.php
-   Purpose:
-   - Records security-related administrative and operational actions such as IP rule creation, updates, block/unblock actions, and alert processing.
-   - Used throughout the security-related services.
+        return $next($request);
+    }
+}
 
-PRIMARY LOCATIONS TO CHECK
--------------------------
-- Login throttle: routes/web.php
-- Login protection logic: app/Services/Security/LoginProtectionService.php
-- IP blocking enforcement: app/Services/Security/IpManagementService.php
-- Middleware guard: app/Http/Middleware/EnsureIpNotBlocked.php
-- Auth telemetry: app/Services/Security/AuthActivityLogger.php
-- Security event recording: app/Models/SecurityEvent.php
-- Authentication log model: app/Models/AuthenticationLog.php
+Purpose:
+- Uses the centralized IP allow/block engine.
+- Returns HTTP 429 when the source IP is blocked.
 
-SUMMARY
--------
-The main security functions used in this project are centered on the login flow, IP block enforcement, and security event/audit logging. The most important files to inspect are:
+3) LOGIN CONTROLLER AUTHENTICATION HANDLING
+-------------------------------------------
+File: app/Http/Controllers/Auth/AuthenticatedSessionController.php
+Code:
+
+public function store(Request $request, AuthActivityLogger $logger, LoginProtectionService $loginProtectionService): RedirectResponse
+{
+    $credentials = $request->validate([
+        'email' => ['required', 'email'],
+        'password' => ['required', 'string'],
+    ]);
+
+    $user = User::query()->where('email', $credentials['email'])->first();
+
+    if ($user && ! $user->is_active) {
+        $logger->record($request, 'login', 'failed', $user, $credentials['email'], 'account_disabled');
+
+        throw ValidationException::withMessages([
+            'email' => 'This account is disabled.',
+        ]);
+    }
+
+    if (! Auth::attempt([
+        'email' => $credentials['email'],
+        'password' => $credentials['password'],
+        'is_active' => true,
+    ], $request->boolean('remember'))) {
+        $logger->record($request, 'login', 'failed', $user, $credentials['email'], 'invalid_credentials');
+        $loginProtectionService->recordFailedAttempt($request, $user, $credentials['email']);
+
+        throw ValidationException::withMessages([
+            'email' => trans('auth.failed'),
+        ]);
+    }
+
+    $request->session()->regenerate();
+    $authenticatedUser = Auth::user();
+    $logger->record($request, 'login', 'successful', $authenticatedUser, $credentials['email']);
+
+    return redirect()->intended(route('dashboard'));
+}
+
+Purpose:
+- Validates credentials.
+- Logs failed and successful login attempts.
+- Calls brute-force tracking after failed credentials.
+
+4) AUTHENTICATION ACTIVITY LOGGER
+---------------------------------
+File: app/Services/Security/AuthActivityLogger.php
+Code:
+
+class AuthActivityLogger
+{
+    public function record(
+        Request $request,
+        string $action,
+        string $status,
+        ?User $user = null,
+        ?string $attemptedIdentity = null,
+        ?string $failureReason = null,
+        bool $withIpIntelligence = true,
+    ): AuthenticationLog {
+        $ipAddress = (string) ($request->ip() ?? '');
+        $location = $withIpIntelligence
+            ? app(IpWhoisService::class)->lookup($ipAddress)
+            : null;
+
+        $record = AuthenticationLog::create([
+            'user_id' => $user?->id,
+            'attempted_identity' => $attemptedIdentity,
+            'ip_address' => $ipAddress,
+            'country' => $location['country'] ?? null,
+            'country_code' => $location['country_code'] ?? null,
+            'region' => $location['region'] ?? null,
+            'region_code' => $location['region_code'] ?? null,
+            'city' => $location['city'] ?? null,
+            'latitude' => $location['latitude'] ?? null,
+            'longitude' => $location['longitude'] ?? null,
+            'postal' => $location['postal'] ?? null,
+            'isp' => $location['isp'] ?? null,
+            'organization' => $location['organization'] ?? null,
+            'asn' => $location['asn'] ?? null,
+            'timezone' => $location['timezone'] ?? null,
+            'user_agent' => $request->userAgent(),
+            'action' => $action,
+            'status' => $status,
+            'failure_reason' => $failureReason,
+            'route' => '/'.$request->path(),
+            'method' => $request->method(),
+            'occurred_at' => now(),
+        ]);
+
+        return $record;
+    }
+}
+
+Purpose:
+- Stores login/logout telemetry and request metadata.
+- Captures IP, user agent, attempted identity, route, method, and optional IP intelligence.
+
+5) FAILED-LOGIN BRUTE-FORCE PROTECTION
+--------------------------------------
+File: app/Services/Security/LoginProtectionService.php
+Code:
+
+public function recordFailedAttempt(Request $request, ?User $user, ?string $attemptedIdentity): bool
+{
+    $ipAddress = (string) ($request->ip() ?? '');
+    $attemptedIdentity ??= '';
+
+    $maxAttempts = IntsecSettings::getInt('max_login_attempts', 5);
+    $windowMinutes = IntsecSettings::getInt('login_attempt_window_minutes', 5);
+
+    $windowStart = now()->subMinutes($windowMinutes);
+
+    $recentFailures = AuthenticationLog::query()
+        ->where('action', 'login')
+        ->where('status', 'failed')
+        ->where('occurred_at', '>=', $windowStart)
+        ->where(function ($query) use ($ipAddress, $attemptedIdentity, $user) {
+            $query->where('ip_address', $ipAddress);
+
+            if ($user) {
+                $query->orWhere('user_id', $user->id);
+            }
+
+            if ($attemptedIdentity !== '') {
+                $query->orWhere('attempted_identity', $attemptedIdentity);
+            }
+        })
+        ->count();
+
+    if ($recentFailures < $maxAttempts) {
+        return false;
+    }
+
+    $blockDuration = IntsecSettings::getInt('login_block_duration_minutes', 15);
+    $blocked = $this->blockIp($request, $blockDuration, 'Too many failed login attempts');
+
+    if ($blocked) {
+        $event = SecurityEvent::record(
+            'Repeated failed authentication',
+            'authentication',
+            'High',
+            $user,
+            $ipAddress,
+            [
+                'attempted_identity' => $attemptedIdentity,
+                'failed_attempt_count' => $recentFailures,
+                'threshold' => $maxAttempts,
+                'window_minutes' => $windowMinutes,
+            ],
+            'Multiple failed login attempts exceeded the configured threshold and triggered an automatic temporary block.'
+        );
+
+        SecurityAlert::query()->create([
+            'alert_id' => SecurityAlert::generateAlertId(),
+            'title' => 'Brute-force login threshold exceeded',
+            'alert_type' => SecurityAlert::TYPE_BRUTE_FORCE,
+            'severity' => 'High',
+            'description' => "{$recentFailures} failed login attempts from {$ipAddress} exceeded the configured threshold of {$maxAttempts} within {$windowMinutes} minutes.",
+            'security_event_id' => $event->id,
+            'source_ip' => $ipAddress,
+            'metadata' => [
+                'detection_rule' => 'repeated_authentication_threshold',
+                'failed_attempt_count' => $recentFailures,
+                'threshold' => $maxAttempts,
+                'window_minutes' => $windowMinutes,
+            ],
+            'status' => 'new',
+            'occurred_at' => now(),
+        ]);
+    }
+
+    return true;
+}
+
+public function blockIp(Request $request, int $durationMinutes, string $reason): bool
+{
+    $ipAddress = $request->ip() ?? '';
+
+    if ($ipAddress === '') {
+        return false;
+    }
+
+    $normalized = IpNetwork::normalize($ipAddress);
+
+    if ($normalized === null) {
+        return false;
+    }
+
+    if ($this->ipManagementService->findEnforcingBlock($normalized)) {
+        return false;
+    }
+
+    try {
+        $this->ipManagementService->createRule([
+            'ip_address' => $normalized,
+            'action' => BlockedIp::ACTION_BLOCK,
+            'is_enabled' => true,
+            'source' => 'automatic',
+            'reason' => $reason,
+            'expires_at' => now()->addMinutes($durationMinutes),
+        ], $request->user(), $ipAddress);
+    } catch (\RuntimeException) {
+        return false;
+    }
+
+    return true;
+}
+
+Purpose:
+- Tracks failed login attempts inside a time window.
+- Automatically creates a block rule after threshold breach.
+- Raises a security event and alert for investigation.
+
+6) CENTRAL IP DECISION ENGINE
+----------------------------
+File: app/Services/Security/IpManagementService.php
+Code:
+
+public function decide(string $ip, bool $recordMatch = true): array
+{
+    $ip = trim($ip);
+
+    if ($ip === '' || ! filter_var($ip, FILTER_VALIDATE_IP)) {
+        return ['decision' => self::DECISION_NONE, 'rule' => null];
+    }
+
+    $canonical = IpNetwork::canonicalIp($ip) ?? $ip;
+    $rules = BlockedIp::query()->enforcing()->orderByDesc('blocked_at')->get(['id', 'ip_address', 'action']);
+
+    $allowMatch = null;
+
+    foreach ($rules as $rule) {
+        if (! IpNetwork::matches($rule->ip_address, $canonical)) {
+            continue;
+        }
+
+        if ($rule->isBlockRule()) {
+            if ($recordMatch) {
+                $this->recordMatch($rule);
+            }
+
+            return ['decision' => self::DECISION_BLOCKED, 'rule' => $rule];
+        }
+
+        $allowMatch ??= $rule;
+    }
+
+    if ($allowMatch) {
+        if ($recordMatch) {
+            $this->recordMatch($allowMatch);
+        }
+
+        return ['decision' => self::DECISION_ALLOWED, 'rule' => $allowMatch];
+    }
+
+    return ['decision' => self::DECISION_NONE, 'rule' => null];
+}
+
+public function isBlocked(string $ip): bool
+{
+    return $this->decide($ip)['decision'] === self::DECISION_BLOCKED;
+}
+
+public function isAllowed(string $ip): bool
+{
+    return $this->decide($ip)['decision'] === self::DECISION_ALLOWED;
+}
+
+public function createRule(array $data, ?User $actor = null, ?string $requestIp = null): BlockedIp
+{
+    $normalized = IpNetwork::normalize($data['ip_address']);
+
+    if ($normalized === null) {
+        throw new \InvalidArgumentException('Invalid IP address or CIDR range.');
+    }
+
+    $action = strtolower((string) ($data['action'] ?? BlockedIp::ACTION_BLOCK));
+    $action = $action === BlockedIp::ACTION_ALLOW ? BlockedIp::ACTION_ALLOW : BlockedIp::ACTION_BLOCK;
+
+    $this->assertNoActiveDuplicate($normalized, $action);
+
+    $rule = BlockedIp::query()->create([
+        'ip_address' => $normalized,
+        'action' => $action,
+        'is_enabled' => (bool) ($data['is_enabled'] ?? true),
+        'source' => $this->normalizeSource($data['source'] ?? 'manual'),
+        'name' => $data['name'] ?? null,
+        'reason' => $data['reason'] ?? null,
+        'description' => $data['description'] ?? null,
+        'administrator_id' => $actor?->id,
+        'alert_id' => $data['alert_id'] ?? null,
+        'incident_id' => $data['incident_id'] ?? null,
+        'blocked_at' => now(),
+        'expires_at' => $data['expires_at'] ?? null,
+        'status' => 'active',
+        'match_count' => 0,
+    ]);
+
+    return $rule;
+}
+
+Purpose:
+- Central deny-wins decision engine for IP access.
+- Handles block/allow/CIDR matching and rule creation.
+- Used by both login protection and IP management screens.
+
+7) SECURITY EVENT RECORDING
+---------------------------
+File: app/Models/SecurityEvent.php
+Code:
+
+public static function record(
+    string $title,
+    string $eventType,
+    string $severity,
+    ?User $user = null,
+    ?string $sourceIp = null,
+    ?array $metadata = null,
+    ?string $description = null,
+    ?string $source = null,
+    ?string $externalEventId = null,
+): self {
+    return static::query()->create([
+        'title' => $title,
+        'source' => $source,
+        'external_event_id' => $externalEventId,
+        'event_type' => $eventType,
+        'severity' => $severity,
+        'description' => $description ?? $title,
+        'user_id' => $user?->id,
+        'source_ip' => $sourceIp,
+        'metadata' => $metadata ?? [],
+        'status' => 'new',
+        'occurred_at' => now(),
+    ]);
+}
+
+Purpose:
+- Stores security-relevant incidents and detections in the database.
+- Used when repeated failed authentication triggers an alert.
+
+8) AUDIT LOGGING FOR SECURITY OPERATIONS
+----------------------------------------
+File: app/Models/AuditLog.php
+Code:
+
+public static function record(
+    string $action,
+    string $resourceType,
+    ?string $resourceName = null,
+    ?int $resourceId = null,
+    mixed $previousValue = null,
+    mixed $newValue = null,
+    ?string $description = null,
+    ?string $ipAddress = null,
+    ?User $actor = null,
+): self {
+    return static::query()->create([
+        'action' => $action,
+        'actor_id' => $actor?->id,
+        'actor_type' => $actor ? 'user' : 'system',
+        'resource_type' => $resourceType,
+        'resource_id' => $resourceId,
+        'resource_name' => $resourceName,
+        'ip_address' => $ipAddress,
+        'previous_value' => $previousValue === null ? null : $previousValue,
+        'new_value' => $newValue === null ? null : $newValue,
+        'description' => $description,
+        'occurred_at' => now(),
+    ]);
+}
+
+Purpose:
+- Records meaningful administrative and security actions.
+- Used by IP management, alert processing, and other security workflows.
+
+CURRENT ACTIVE SECURITY FUNCTIONS SUMMARY
+----------------------------------------
+The project is actively using the following security functions in code right now:
+
+- throttle:5,1
+- EnsureIpNotBlocked::handle()
+- AuthenticatedSessionController::store()
+- AuthActivityLogger::record()
+- LoginProtectionService::isBlocked()
+- LoginProtectionService::recordFailedAttempt()
+- LoginProtectionService::blockIp()
+- IpManagementService::decide()
+- IpManagementService::isBlocked()
+- IpManagementService::isAllowed()
+- IpManagementService::createRule()
+- IpManagementService::updateRule()
+- IpManagementService::setEnabled()
+- IpManagementService::deleteRule()
+- IpManagementService::findEnforcingBlock()
+- SecurityEvent::record()
+- AuditLog::record()
+
+Files to review for the current setup:
 - routes/web.php
 - app/Http/Middleware/EnsureIpNotBlocked.php
+- app/Http/Controllers/Auth/AuthenticatedSessionController.php
+- app/Services/Security/AuthActivityLogger.php
 - app/Services/Security/LoginProtectionService.php
 - app/Services/Security/IpManagementService.php
-- app/Services/Security/AuthActivityLogger.php
 - app/Models/SecurityEvent.php
-- app/Models/AuthenticationLog.php
+- app/Models/AuditLog.php

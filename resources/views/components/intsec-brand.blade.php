@@ -1,6 +1,9 @@
-@props(['compact' => false])
+@props([
+    'compact' => false,
+    'class' => 'inline-flex items-center gap-3',
+])
 
-<a href="{{ auth()->check() ? route('dashboard') : url('/') }}" class="inline-flex items-center gap-3" aria-label="INTSEC home">
+<a href="{{ auth()->check() ? route('dashboard') : url('/') }}" class="{{ $class }}" aria-label="INTSEC home">
     <img
         src="{{ asset('images/INTSEC.png') }}"
         alt="INTSEC"

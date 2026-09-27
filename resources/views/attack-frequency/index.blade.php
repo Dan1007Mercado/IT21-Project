@@ -5,77 +5,72 @@
             <h1 class="mt-2 text-3xl font-semibold text-white">IP Request Frequency</h1>
         </div>
         <div class="flex flex-wrap gap-2 text-xs text-zinc-300">
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Tracked IPs: {{ count($attackFrequency) }}</span>
+            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Tracked IPs: {{ $attackFrequency->total() }}</span>
         </div>
     </div>
 
-    <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-        <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-white">High Load IPs</h2>
-            <span class="text-xs uppercase tracking-wide text-zinc-500">7-day view</span>
-        </div>
-        <div class="h-80">
-            <canvas id="attackFrequencyChart" aria-label="Attack frequency chart"></canvas>
-        </div>
-    </section>
+    <form method="GET" action="{{ route('attack-frequency') }}" class="mt-6 flex flex-wrap gap-3">
+        <input
+            type="text"
+            name="search"
+            value="{{ request('search') }}"
+            placeholder="Search IP address"
+            class="min-w-[220px] flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500"
+        >
+
+        <select name="min_requests" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
+            <option value="">All request counts</option>
+            @foreach ([5, 10, 25, 50, 100] as $threshold)
+                <option value="{{ $threshold }}" {{ request('min_requests') == (string) $threshold ? 'selected' : '' }}>
+                    {{ $threshold }}+ requests
+                </option>
+            @endforeach
+        </select>
+
+        <button type="submit" class="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-200">
+            Filter
+        </button>
+        <a href="{{ route('attack-frequency') }}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300">
+            Clear
+        </a>
+    </form>
 
     <section class="mt-8 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900">
         <div class="border-b border-zinc-800 px-5 py-4">
             <h2 class="text-lg font-semibold text-white">Frequency detail</h2>
         </div>
-        <div class="divide-y divide-zinc-800">
-            @forelse ($attackFrequency as $entry)
-                <div class="grid gap-2 px-5 py-4 text-sm md:grid-cols-3">
-                    <span class="text-zinc-300">{{ $entry['ip'] }}</span>
-                    <span class="text-zinc-400">Request count: {{ $entry['count'] }}</span>
-                    <span class="text-zinc-500 md:text-right">{{ $entry['count'] >= 10 ? 'High activity' : 'Normal activity' }}</span>
-                </div>
-            @empty
-                <p class="px-5 py-6 text-sm text-zinc-400">No repeated attack patterns detected.</p>
-            @endforelse
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full border-collapse text-left text-sm text-zinc-200">
+                <thead class="bg-zinc-950/70">
+                    <tr>
+                        <th class="px-5 py-3 font-medium text-zinc-300">IP Address</th>
+                        <th class="px-5 py-3 font-medium text-zinc-300">Request Count</th>
+                        <th class="px-5 py-3 font-medium text-zinc-300">Activity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($attackFrequency as $entry)
+                        <tr class="border-t border-zinc-800">
+                            <td class="px-5 py-4 font-mono text-zinc-100">{{ $entry['ip'] }}</td>
+                            <td class="px-5 py-4 text-zinc-300">{{ $entry['count'] }}</td>
+                            <td class="px-5 py-4">
+                                <span class="inline-flex rounded-full border px-2.5 py-1 text-xs {{ $entry['count'] >= 10 ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' }}">
+                                    {{ $entry['count'] >= 10 ? 'High activity' : 'Normal activity' }}
+                                </span>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="3" class="px-5 py-10 text-center text-zinc-400">No repeated attack patterns detected for the current filter.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </section>
 
-    <div class="mt-6 px-5 pb-5">
-        {{ $attackFrequency->links() }}
+    <div class="mt-6 px-1 pb-2">
+        {{ $attackFrequency->appends(request()->query())->links() }}
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        const attackLabels = @json(collect($attackFrequency->items())->pluck('ip')->all());
-        const attackData = @json(collect($attackFrequency->items())->pluck('count')->all());
-
-        new Chart(document.getElementById('attackFrequencyChart'), {
-            type: 'bar',
-            data: {
-                labels: attackLabels,
-                datasets: [{
-                    label: 'Requests',
-                    data: attackData,
-                    borderRadius: 8,
-                    backgroundColor: 'rgba(34, 211, 238, 0.7)',
-                    borderColor: 'rgba(34, 211, 238, 1)',
-                    borderWidth: 1,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                },
-                scales: {
-                    x: {
-                        ticks: { color: '#a1a1aa' },
-                        grid: { display: false },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: '#a1a1aa', precision: 0 },
-                        grid: { color: 'rgba(255,255,255,0.06)' },
-                    },
-                },
-            },
-        });
-    </script>
 </x-layouts.app>

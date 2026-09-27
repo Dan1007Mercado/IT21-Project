@@ -112,8 +112,23 @@ class DashboardController extends Controller
             ];
         }));
 
+        $countryCount = collect($paginator->items())
+            ->map(fn ($location) => $location['country'] ?? null)
+            ->filter()
+            ->unique()
+            ->count();
+
+        $cityCount = collect($paginator->items())
+            ->map(fn ($location) => $location['city'] ?? null)
+            ->filter()
+            ->unique()
+            ->count();
+
         return view('ip-locations.index', [
             'ipLocations' => $paginator,
+            'countryCount' => $countryCount,
+            'cityCount' => $cityCount,
+            'mapLocations' => $paginator->items(),
         ]);
     }
 

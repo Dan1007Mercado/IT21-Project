@@ -1,9 +1,14 @@
+@props([
+    'title' => config('app.name', 'INTSEC'),
+    'wide' => false,
+])
+
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title ?? config('app.name', 'INTSEC') }}</title>
+        <title>{{ $title }}</title>
         <x-app-assets />
     </head>
     <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
@@ -24,7 +29,7 @@
                     <section>
                         <p class="px-3 text-xs font-medium uppercase text-zinc-600">Security monitoring</p>
                         <div class="mt-2 space-y-1">
-                            <a href="{{ route('ddos-monitoring') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('ddos-monitoring'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('ddos-monitoring')])>DDoS / request spikes</a>
+                            <a href="{{ route('ddos-monitoring') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('ddos-monitoring'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('ddos-monitoring')])>Request volume spikes</a>
                             <a href="{{ route('attack-frequency') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('attack-frequency'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('attack-frequency')])>IP Request Frequency</a>
                             @if (auth()->user()?->isAdministrator())
                                 <a href="{{ route('ip-management.index') }}" @class(['block rounded-md px-3 py-2.5 font-medium transition', 'bg-cyan-400/10 text-cyan-200' => request()->routeIs('ip-management.*'), 'text-zinc-400 hover:bg-zinc-900 hover:text-white' => ! request()->routeIs('ip-management.*')])>IP management</a>
@@ -91,7 +96,7 @@
                         </summary>
                         <nav class="absolute inset-x-0 top-[calc(100%+0.75rem)] z-20 space-y-1 rounded-md border border-zinc-800 bg-zinc-950 p-3 shadow-2xl">
                             <a href="{{ route('dashboard') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Dashboard</a>
-                            <a href="{{ route('ddos-monitoring') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">DDoS / request spikes</a>
+                            <a href="{{ route('ddos-monitoring') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Request volume spikes</a>
                             <a href="{{ route('attack-frequency') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">Attack frequency</a>
                             @if (auth()->user()?->isAdministrator())
                                 <a href="{{ route('ip-management.index') }}" class="block rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white">IP management</a>
@@ -115,7 +120,10 @@
                 </div>
             </header>
 
-            <main class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-10">
+            <main @class([
+                'w-full px-4 py-6 sm:px-6 lg:px-8',
+                'mx-auto max-w-[1600px]' => $wide,
+            ])>
                 @if (session('status') === 'profile-updated')
                     <div class="mb-6 rounded-md border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-100">
                         Profile updated.

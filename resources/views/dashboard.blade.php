@@ -1,4 +1,4 @@
-<x-layouts.app title="Dashboard - INTSEC">
+<x-layouts.app title="Dashboard - INTSEC" wide>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">

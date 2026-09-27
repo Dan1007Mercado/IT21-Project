@@ -252,7 +252,14 @@
             </div>
         </div>
 
-        <div class="flex justify-end">{{ $rules->links() }}</div>
+        <div class="flex items-center justify-between gap-3 border-t border-zinc-800 px-3 py-4 text-sm text-zinc-300">
+            <div class="text-zinc-400">
+                Showing {{ $rules->firstItem() ?? 0 }}-{{ $rules->lastItem() ?? 0 }} of {{ $rules->total() }} rules
+            </div>
+            <div class="flex justify-end">
+                {{ $rules->appends(request()->query())->links() }}
+            </div>
+        </div>
     </div>
 
     {{-- Add rule modal --}}

@@ -103,7 +103,7 @@
         </div>
 
         <div id="incident-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center overflow-y-auto bg-zinc-950/80 p-4 backdrop-blur-sm">
-            <div class="my-8 max-h-[calc(100vh-4rem)] w-full max-w-4xl overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-cyan-950/20">
+            <div class="mx-auto my-auto max-h-[calc(100vh-3rem)] w-full max-w-4xl overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-cyan-950/20">
                 <div class="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
                     <div>
                         <p class="text-xs font-medium uppercase tracking-[0.2em] text-cyan-300">Create incident</p>
@@ -316,8 +316,13 @@
             </div>
         </div>
 
-        <div class="flex justify-end">
-            {{ $incidents->links() }}
+        <div class="flex items-center justify-between gap-3 border-t border-zinc-800 px-3 py-4 text-sm text-zinc-300">
+            <div class="text-zinc-400">
+                Showing {{ $incidents->firstItem() ?? 0 }}-{{ $incidents->lastItem() ?? 0 }} of {{ $incidents->total() }} incidents
+            </div>
+            <div class="flex justify-end">
+                {{ $incidents->appends(request()->query())->links() }}
+            </div>
         </div>
     </div>
 </x-layouts.app>

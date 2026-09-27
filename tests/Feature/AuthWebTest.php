@@ -108,7 +108,7 @@ class AuthWebTest extends TestCase
 
         $this->actingAs($user)->get('/ddos-monitoring')
             ->assertOk()
-            ->assertSee('DDoS / request spikes');
+            ->assertSee('Request volume spikes');
 
         $this->actingAs($user)->get('/attack-frequency')
             ->assertOk()

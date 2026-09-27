@@ -24,6 +24,13 @@ return new class extends Migration
             $table->string('organization')->nullable()->after('isp');
             $table->unsignedBigInteger('asn')->nullable()->after('organization');
             $table->string('timezone')->nullable()->after('asn');
+            $table->string('device_type')->nullable()->after('timezone');
+            $table->string('device_manufacturer')->nullable()->after('device_type');
+            $table->string('device_model')->nullable()->after('device_manufacturer');
+            $table->string('os_name')->nullable()->after('device_model');
+            $table->string('os_version')->nullable()->after('os_name');
+            $table->string('browser_name')->nullable()->after('os_version');
+            $table->string('browser_version')->nullable()->after('browser_name');
         });
     }
 
@@ -46,6 +53,13 @@ return new class extends Migration
                 'organization',
                 'asn',
                 'timezone',
+                'device_type',
+                'device_manufacturer',
+                'device_model',
+                'os_name',
+                'os_version',
+                'browser_name',
+                'browser_version',
             ]);
         });
     }

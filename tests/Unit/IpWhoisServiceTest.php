@@ -115,6 +115,63 @@ class IpWhoisServiceTest extends TestCase
         $this->assertNull(app(IpWhoisService::class)->lookup('256.0.0.1'));
     }
 
+    public function test_it_rejects_missing_and_zero_coordinates(): void
+    {
+        Http::fake([
+            'https://ipwho.is/203.0.113.10' => Http::response([
+                'success' => true,
+                'ip' => '203.0.113.10',
+                'country' => 'Philippines',
+                'country_code' => 'PH',
+                'region' => 'Metro Manila',
+                'region_code' => 'NCR',
+                'city' => 'Quezon City',
+                'latitude' => 0,
+                'longitude' => 0,
+                'postal' => '1100',
+                'connection' => [
+                    'asn' => 132199,
+                    'org' => 'Converge ICT Solutions Inc.',
+                    'isp' => 'Converge ICT Solutions Inc.',
+                ],
+                'timezone' => ['id' => 'Asia/Manila'],
+            ], 200),
+        ]);
+
+        $this->assertNull(app(IpWhoisService::class)->lookup('203.0.113.10'));
+    }
+
+    public function test_it_keeps_provider_and_organization_separate_when_available(): void
+    {
+        Http::fake([
+            'https://ipwho.is/202.90.148.14' => Http::response([
+                'success' => true,
+                'ip' => '202.90.148.14',
+                'country' => 'Philippines',
+                'country_code' => 'PH',
+                'region' => 'Metro Manila',
+                'region_code' => 'NCR',
+                'city' => 'Makati',
+                'latitude' => 14.5547,
+                'longitude' => 121.0244,
+                'postal' => '1226',
+                'connection' => [
+                    'asn' => 9299,
+                    'org' => 'PLDT Inc.',
+                    'isp' => 'PLDT Home',
+                ],
+                'timezone' => ['id' => 'Asia/Manila'],
+            ], 200),
+        ]);
+
+        $result = app(IpWhoisService::class)->lookup('202.90.148.14');
+
+        $this->assertNotNull($result);
+        $this->assertSame('PLDT Home', $result['isp']);
+        $this->assertSame('PLDT Inc.', $result['organization']);
+        $this->assertSame(9299, $result['asn']);
+    }
+
     public function test_auth_activity_logger_enriches_public_ip_geolocation(): void
     {
         Http::fake([

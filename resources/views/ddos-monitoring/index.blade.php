@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Security monitoring</p>
-            <h1 class="mt-2 text-3xl font-semibold text-white">DDoS / request spikes</h1>
+            <h1 class="mt-2 text-3xl font-semibold text-white">Request volume spikes</h1>
         </div>
         <div class="flex flex-wrap gap-2 text-xs text-zinc-300">
             <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Current requests: {{ $currentRequests ?? 0 }}</span>
