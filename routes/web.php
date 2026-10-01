@@ -8,10 +8,22 @@ use App\Http\Controllers\IpManagementController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SecurityAlertController;
 use App\Http\Middleware\EnsureIpNotBlocked;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+Route::get('/debug-ip', function (Request $request) {
+    return [
+        'laravel_ip' => $request->ip(),
+        'remote_addr' => $request->server('REMOTE_ADDR'),
+
+        'cf_connecting_ip' => $request->header('CF-Connecting-IP'),
+        'x_forwarded_for' => $request->header('X-Forwarded-For'),
+        'x_real_ip' => $request->header('X-Real-IP'),
+    ];
 });
 
 Route::middleware('guest')->group(function (): void {

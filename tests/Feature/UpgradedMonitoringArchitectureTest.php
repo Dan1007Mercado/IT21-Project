@@ -65,6 +65,20 @@ class UpgradedMonitoringArchitectureTest extends TestCase
         Request::setTrustedProxies([], Request::HEADER_X_FORWARDED_FOR);
     }
 
+    public function test_cloudflare_connecting_ip_is_used_for_local_peer(): void
+    {
+        $request = Request::create('/', 'GET', server: ['REMOTE_ADDR' => '127.0.0.1']);
+        $request->headers->set('CF-Connecting-IP', '8.8.4.4');
+        $resolver = app(ClientIpResolver::class);
+
+        $this->assertSame('8.8.4.4', $resolver->resolve($request)['ip']);
+
+        $request = Request::create('/', 'GET', server: ['REMOTE_ADDR' => '203.0.113.10']);
+        $request->headers->set('CF-Connecting-IP', '8.8.4.4');
+
+        $this->assertSame('203.0.113.10', $resolver->resolve($request)['ip']);
+    }
+
     public function test_private_ip_is_persisted_but_never_sent_to_enrichment_provider(): void
     {
         Http::fake();

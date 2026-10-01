@@ -11,9 +11,15 @@ final class ClientIpResolver
     /** @return array{ip: ?string, type: string} */
     public function resolve(Request $request): array
     {
-        // Request::ip() honors Laravel's configured trusted-proxy boundary.
-        // Raw forwarding headers are never parsed here.
-        $ip = IpNetwork::canonicalIp((string) $request->ip());
+        $remoteAddress = $request->server('REMOTE_ADDR');
+        $cfIp = trim((string) $request->header('CF-Connecting-IP'));
+
+        if (in_array($remoteAddress, ['127.0.0.1', '::1'], true) && filter_var($cfIp, FILTER_VALIDATE_IP)) {
+            $ip = IpNetwork::canonicalIp($cfIp);
+        } else {
+            // Request::ip() honors Laravel's configured trusted-proxy boundary.
+            $ip = IpNetwork::canonicalIp((string) $request->ip());
+        }
 
         return [
             'ip' => $ip,

@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\AuthenticationLog;
+use App\Models\IpIntelligence;
+use App\Models\RequestActivity;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -105,6 +107,50 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($demoLocations as $index => $location) {
+            IpIntelligence::query()->updateOrCreate([
+                'ip_address' => $location['ip_address'],
+            ], [
+                'ip_type' => 'public',
+                'country' => $location['country'],
+                'country_code' => $location['country_code'],
+                'region' => $location['region'],
+                'region_code' => $location['region_code'],
+                'city' => $location['city'],
+                'latitude' => $location['latitude'],
+                'longitude' => $location['longitude'],
+                'postal' => $location['postal'],
+                'isp' => $location['isp'],
+                'organization' => $location['organization'],
+                'asn' => $location['asn'],
+                'timezone' => $location['timezone'],
+                'provider' => 'demo',
+                'last_enriched_at' => now()->subHours(12 + $index),
+                'last_seen_at' => now()->subHours($index + 1),
+                'metadata' => ['source' => 'database_seeder'],
+            ]);
+
+            RequestActivity::query()->updateOrCreate([
+                'request_id' => 'demo-location-'.($index + 1),
+            ], [
+                'source' => 'demo',
+                'user_id' => $admin->id,
+                'ip_address' => $location['ip_address'],
+                'ip_type' => 'public',
+                'method' => 'GET',
+                'path' => '/demo/ip-intelligence',
+                'route_name' => 'demo.ip-intelligence',
+                'status_code' => 200,
+                'user_agent' => 'INTSEC Demo Seeder',
+                'referer' => null,
+                'is_authenticated' => true,
+                'duration_ms' => 120 + ($index * 35),
+                'request_size' => 512,
+                'response_size' => 4096,
+                'classification' => 'normal',
+                'metadata' => ['source' => 'database_seeder'],
+                'occurred_at' => now()->subHours($index + 1),
+            ]);
+
             AuthenticationLog::factory()->create([
                 'user_id' => $admin->id,
                 'attempted_identity' => 'demo.public.ip'.($index + 1).'@intsec.test',
