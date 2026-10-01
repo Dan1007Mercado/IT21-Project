@@ -14,9 +14,14 @@ class SecurityEvent extends Model
         'source',
         'external_event_id',
         'event_type',
+        'rule_key',
         'severity',
+        'risk_score',
+        'confidence',
         'description',
         'user_id',
+        'request_activity_id',
+        'authentication_log_id',
         'source_ip',
         'metadata',
         'status',
@@ -26,11 +31,23 @@ class SecurityEvent extends Model
     protected $casts = [
         'metadata' => 'array',
         'occurred_at' => 'datetime',
+        'risk_score' => 'integer',
+        'confidence' => 'float',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function requestActivity(): BelongsTo
+    {
+        return $this->belongsTo(RequestActivity::class);
+    }
+
+    public function authenticationLog(): BelongsTo
+    {
+        return $this->belongsTo(AuthenticationLog::class);
     }
 
     public static function record(

@@ -1,0 +1,2 @@
+@props(['severity'])
+<span @class(['inline-flex rounded border px-2 py-1 text-xs font-medium','border-red-500/40 bg-red-500/10 text-red-200' => $severity === 'Critical','border-orange-500/40 bg-orange-500/10 text-orange-200' => $severity === 'High','border-amber-500/40 bg-amber-500/10 text-amber-200' => in_array($severity, ['Warning', 'Suspicious'], true),'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' => $severity === 'Normal'])>{{ $severity }}</span>

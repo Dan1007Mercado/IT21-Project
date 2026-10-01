@@ -1,196 +1,29 @@
-<x-layouts.app title="IP Locations - INTSEC">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-            <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">IP Intelligence</p>
-            <h1 class="mt-2 text-3xl font-semibold text-white">IP locations</h1>
-        </div>
-        <div class="flex flex-wrap gap-2 text-xs text-zinc-300">
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Unique IPs: {{ $ipLocations->total() }}</span>
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Countries: {{ $countryCount }}</span>
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Cities: {{ $cityCount }}</span>
-        </div>
-    </div>
-
-    <p class="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
-        Approximate geographic locations of recorded security events. These markers reflect public IP geolocation and are not exact physical locations.
-    </p>
-
-    <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-        <div id="ip-location-map" class="w-full overflow-hidden rounded-xl border border-zinc-800" style="height: 450px; min-height: 280px;"></div>
-        <div id="ip-location-empty" class="hidden rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 px-4 py-5 text-sm text-zinc-400">
-            No geographic IP locations available.
-        </div>
-    </section>
-
-    <section class="mt-8 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900">
-        <div class="border-b border-zinc-800 px-5 py-4">
-            <h2 class="text-lg font-semibold text-white">Observed IP locations</h2>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full min-w-[720px] text-left text-sm">
-                <thead class="border-b border-zinc-800 text-xs uppercase tracking-[0.14em] text-zinc-500">
-                    <tr>
-                        <th class="px-4 py-3">IP Address</th>
-                        <th class="px-4 py-3">Location</th>
-                        <th class="px-4 py-3">Country</th>
-                        <th class="px-4 py-3">ISP</th>
-                        <th class="px-4 py-3">Events</th>
-                        <th class="px-4 py-3">Last Seen</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-800">
-                    @forelse ($ipLocations as $location)
-                        <tr>
-                            <td class="px-4 py-3 text-zinc-300">{{ $location['ip'] }}</td>
-                            <td class="px-4 py-3 text-zinc-300">{{ $location['city'] ?? 'Unknown city' }}, {{ $location['region'] ?? 'Unknown region' }}</td>
-                            <td class="px-4 py-3 text-zinc-400">{{ $location['country'] ?? 'Unknown country' }}</td>
-                            <td class="px-4 py-3 text-zinc-400">{{ $location['isp'] ?? 'Unknown ISP' }}</td>
-                            <td class="px-4 py-3 text-zinc-300">{{ $location['event_count'] ?? 0 }}</td>
-                            <td class="px-4 py-3 text-zinc-500">{{ $location['last_seen'] ? \Carbon\Carbon::parse($location['last_seen'])->format('M j, Y H:i') : 'Unknown' }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-zinc-400">No public IP locations are currently available.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <div class="mt-6">
-        {{ $ipLocations->links() }}
-    </div>
-
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<x-layouts.app title="IP Intelligence - INTSEC" wide>
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">IP intelligence</p><h1 class="mt-2 text-3xl font-semibold text-white">IP locations</h1><p class="mt-2 max-w-3xl text-sm text-zinc-400">Approximate public-IP enrichment. Private, reserved, and loopback addresses remain visible but are never plotted.</p></div><div class="flex gap-2 text-xs text-zinc-400"><span class="rounded border border-zinc-800 px-2 py-1">IPs {{ $ipLocations->total() }}</span><span class="rounded border border-zinc-800 px-2 py-1">Countries {{ $countryCount }}</span><span class="rounded border border-zinc-800 px-2 py-1">Cities {{ $cityCount }}</span></div></header>
+    <form method="GET" class="mt-6 grid gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-4"><input name="ip" value="{{ request('ip') }}" placeholder="IP contains…" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><select name="ip_type" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All IP types</option>@foreach (['public','private','loopback','reserved','invalid'] as $type)<option value="{{ $type }}" @selected(request('ip_type')===$type)>{{ ucfirst($type) }}</option>@endforeach</select><select name="country" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All countries</option>@foreach ($countries as $code=>$country)<option value="{{ $code }}" @selected(request('country')===$code)>{{ $country }}</option>@endforeach</select><div class="flex gap-2"><button class="flex-1 rounded-md bg-cyan-400 px-3 py-2 text-sm font-semibold text-zinc-950">Filter</button><a href="{{ route('ip-locations') }}" class="rounded-md border border-zinc-700 px-3 py-2 text-sm">Clear</a></div></form>
+    <section class="mt-6 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4"><div id="ip-location-map" class="h-[clamp(320px,55vh,650px)] w-full rounded-md border border-zinc-800"></div><div id="ip-location-empty" class="hidden py-10 text-center text-sm text-zinc-500">No public IPs with valid coordinates are available on this page.</div></section>
+    <section class="mt-6 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60"><div class="overflow-x-auto"><table class="min-w-[1100px] w-full text-left text-sm"><thead class="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500"><tr><th class="px-4 py-3">IP</th><th class="px-4 py-3">Type</th><th class="px-4 py-3">Approximate location</th><th class="px-4 py-3">ASN / organization</th><th class="px-4 py-3">Last seen</th><th class="px-4 py-3">Requests</th><th class="px-4 py-3">Policy</th></tr></thead><tbody class="divide-y divide-zinc-800">@forelse ($ipLocations as $row)<tr><td class="px-4 py-3 font-mono text-zinc-200">{{ $row['ip'] }}</td><td class="px-4 py-3">{{ ucfirst($row['ip_type']) }}</td><td class="px-4 py-3 text-zinc-400">@if ($row['ip_type']==='loopback') Localhost @elseif ($row['ip_type']==='private') Private network @elseif ($row['ip_type']!=='public') No public geolocation @else {{ collect([$row['city'],$row['region'],$row['country']])->filter()->join(', ') ?: 'Awaiting enrichment' }} @endif</td><td class="px-4 py-3 text-zinc-400">{{ $row['asn'] ? 'AS'.$row['asn'].' · ' : '' }}{{ $row['organization'] ?? $row['isp'] ?? 'Unknown' }}</td><td class="px-4 py-3 text-zinc-400">{{ \Carbon\Carbon::parse($row['last_seen'])->diffForHumans() }}</td><td class="px-4 py-3">{{ number_format($row['event_count']) }}</td><td class="px-4 py-3 {{ $row['is_blocked'] ? 'text-red-300' : 'text-zinc-500' }}">{{ $row['is_blocked'] ? 'Blocked' : 'No block' }}</td></tr>@empty<tr><td colspan="7" class="px-4 py-10 text-center text-zinc-500">No observed IPs match these filters.</td></tr>@endforelse</tbody></table></div></section><div class="mt-6">{{ $ipLocations->links() }}</div>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
-        const ipLocations = @json($mapLocations ?? $ipLocations->items());
-        const mapElement = document.getElementById('ip-location-map');
-        const emptyState = document.getElementById('ip-location-empty');
-
-        if (mapElement && window.L) {
-            const validLocations = ipLocations.filter((entry) => {
-                const latitude = Number(entry.latitude);
-                const longitude = Number(entry.longitude);
-                return Number.isFinite(latitude) && Number.isFinite(longitude)
-                    && latitude >= -90 && latitude <= 90
-                    && longitude >= -180 && longitude <= 180
-                    && !(latitude === 0 && longitude === 0);
+        const locations = @json($mapLocations);
+        const mapNode = document.getElementById('ip-location-map');
+        const emptyNode = document.getElementById('ip-location-empty');
+        if (window.L && locations.length) {
+            const map = L.map(mapNode).setView([15, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+            const bounds = [];
+            locations.forEach((entry) => {
+                const lat=Number(entry.latitude), lng=Number(entry.longitude);
+                if (!Number.isFinite(lat)||!Number.isFinite(lng)||(lat===0&&lng===0)) return;
+                const popup=document.createElement('div'); popup.style.color='#111827'; popup.style.minWidth='210px';
+                const lines=[['IP',entry.ip],['Approximate location',[entry.city,entry.country].filter(Boolean).join(', ')||'Unknown'],['ASN / organization',[entry.asn?'AS'+entry.asn:null,entry.organization||entry.isp].filter(Boolean).join(' · ')||'Unknown'],['Last seen',entry.last_seen?new Date(entry.last_seen).toLocaleString():'Unknown'],['Requests',String(entry.event_count||0)],['Policy',entry.is_blocked?'Blocked':'No block']];
+                lines.forEach(([label,value])=>{const row=document.createElement('div');const strong=document.createElement('strong');strong.textContent=label+': ';row.appendChild(strong);row.appendChild(document.createTextNode(value));popup.appendChild(row);});
+                L.marker([lat,lng]).addTo(map).bindPopup(popup); bounds.push([lat,lng]);
             });
-
-            if (validLocations.length > 0) {
-                const map = L.map('ip-location-map', {
-                    scrollWheelZoom: true,
-                    zoomControl: true,
-                });
-
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors',
-                }).addTo(map);
-
-                const grouped = new Map();
-
-                validLocations.forEach((entry) => {
-                    const latitude = Number(entry.latitude);
-                    const longitude = Number(entry.longitude);
-                    const key = `${latitude.toFixed(4)}:${longitude.toFixed(4)}`;
-                    const list = grouped.get(key) ?? [];
-                    list.push(entry);
-                    grouped.set(key, list);
-                });
-
-                const markers = [];
-
-                grouped.forEach((entries) => {
-                    const first = entries[0];
-                    const latitude = Number(first.latitude);
-                    const longitude = Number(first.longitude);
-                    const totalEvents = entries.reduce((sum, entry) => sum + (Number(entry.event_count) || 0), 0);
-                    const ipList = entries.map((entry) => entry.ip || 'Unknown IP').filter(Boolean);
-                    const popupContainer = document.createElement('div');
-                    popupContainer.style.minWidth = '220px';
-                    popupContainer.style.color = '#0f172a';
-                    popupContainer.style.lineHeight = '1.5';
-
-                    const title = document.createElement('div');
-                    title.style.fontWeight = '700';
-                    title.style.marginBottom = '6px';
-                    title.textContent = 'Approximate IP Location';
-                    popupContainer.appendChild(title);
-
-                    const ipRow = document.createElement('div');
-                    ipRow.innerHTML = '<strong>IP:</strong> '; 
-                    const ipText = document.createElement('span');
-                    ipText.textContent = ipList.length ? ipList.join(', ') : 'Unknown IP';
-                    ipRow.appendChild(ipText);
-                    popupContainer.appendChild(ipRow);
-
-                    const cityRow = document.createElement('div');
-                    cityRow.innerHTML = '<strong>City:</strong> ';
-                    cityRow.appendChild(document.createTextNode(first.city || 'Unknown city'));
-                    popupContainer.appendChild(cityRow);
-
-                    const regionRow = document.createElement('div');
-                    regionRow.innerHTML = '<strong>Region:</strong> ';
-                    regionRow.appendChild(document.createTextNode(first.region || 'Unknown region'));
-                    popupContainer.appendChild(regionRow);
-
-                    const countryRow = document.createElement('div');
-                    countryRow.innerHTML = '<strong>Country:</strong> ';
-                    countryRow.appendChild(document.createTextNode(first.country || 'Unknown country'));
-                    popupContainer.appendChild(countryRow);
-
-                    const ispRow = document.createElement('div');
-                    ispRow.innerHTML = '<strong>ISP:</strong> ';
-                    ispRow.appendChild(document.createTextNode(first.isp || 'Unknown ISP'));
-                    popupContainer.appendChild(ispRow);
-
-                    const orgRow = document.createElement('div');
-                    orgRow.innerHTML = '<strong>Organization:</strong> ';
-                    orgRow.appendChild(document.createTextNode(first.organization || 'Unknown organization'));
-                    popupContainer.appendChild(orgRow);
-
-                    const asnRow = document.createElement('div');
-                    asnRow.innerHTML = '<strong>ASN:</strong> ';
-                    asnRow.appendChild(document.createTextNode(first.asn || 'Unknown'));
-                    popupContainer.appendChild(asnRow);
-
-                    const timezoneRow = document.createElement('div');
-                    timezoneRow.innerHTML = '<strong>Timezone:</strong> ';
-                    timezoneRow.appendChild(document.createTextNode(first.timezone || 'Unknown time zone'));
-                    popupContainer.appendChild(timezoneRow);
-
-                    const countRow = document.createElement('div');
-                    countRow.innerHTML = '<strong>Security Events:</strong> ';
-                    countRow.appendChild(document.createTextNode(String(totalEvents)));
-                    popupContainer.appendChild(countRow);
-
-                    const lastSeenRow = document.createElement('div');
-                    lastSeenRow.innerHTML = '<strong>Last Seen:</strong> ';
-                    lastSeenRow.appendChild(document.createTextNode(first.last_seen ? new Date(first.last_seen).toLocaleString() : 'Unknown'));
-                    popupContainer.appendChild(lastSeenRow);
-
-                    L.marker([latitude, longitude])
-                        .addTo(map)
-                        .bindPopup(popupContainer);
-
-                    markers.push([latitude, longitude]);
-                });
-
-                if (markers.length === 1) {
-                    map.setView(markers[0], 4);
-                } else {
-                    map.fitBounds(L.latLngBounds(markers), { padding: [30, 30] });
-                }
-
-                setTimeout(() => map.invalidateSize(), 150);
-            } else if (emptyState) {
-                emptyState.classList.remove('hidden');
-            }
-        } else if (emptyState) {
-            emptyState.classList.remove('hidden');
-        }
+            if (bounds.length===1) map.setView(bounds[0],5); else if(bounds.length) map.fitBounds(bounds,{padding:[30,30]});
+            if(!bounds.length){mapNode.classList.add('hidden');emptyNode.classList.remove('hidden');}
+            setTimeout(()=>map.invalidateSize(),100);
+        } else { mapNode.classList.add('hidden'); emptyNode.classList.remove('hidden'); }
     </script>
 </x-layouts.app>

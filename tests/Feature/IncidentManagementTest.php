@@ -3,11 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Incident;
+use App\Models\RequestActivity;
 use App\Models\SecurityAlert;
 use App\Models\SecurityEvent;
 use App\Models\User;
-use App\Models\AuthenticationLog;
 use App\Services\Security\IntsecSettings;
+use App\Services\Security\RequestDetectionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -28,7 +29,7 @@ class IncidentManagementTest extends TestCase
         $this->actingAs($admin)
             ->get('/dashboard')
             ->assertOk()
-            ->assertSee('Incident management');
+            ->assertSee('Recent incidents');
     }
 
     public function test_standard_user_cannot_access_incident_management(): void
@@ -105,125 +106,33 @@ class IncidentManagementTest extends TestCase
         ]);
     }
 
-    public function test_ip_activity_threshold_creates_alert_and_incident_only_when_exceeded(): void
+    public function test_request_frequency_page_does_not_create_alerts_or_incidents(): void
     {
         $admin = User::factory()->administrator()->create();
-        IntsecSettings::set('repeated_ip_activity_threshold', 30);
-
-        AuthenticationLog::factory()
-            ->count(10)
-            ->create([
-                'ip_address' => '203.0.113.30',
-                'occurred_at' => now()->subMinutes(5),
-            ]);
+        RequestActivity::factory()->count(31)->create(['ip_address' => '8.8.8.8', 'occurred_at' => now()]);
 
         $this->actingAs($admin)->get('/attack-frequency')->assertOk();
 
         $this->assertDatabaseCount('security_events', 0);
         $this->assertDatabaseCount('security_alerts', 0);
         $this->assertDatabaseCount('incidents', 0);
-
-        AuthenticationLog::factory()
-            ->count(20)
-            ->create([
-                'ip_address' => '203.0.113.30',
-                'occurred_at' => now()->subMinutes(5),
-            ]);
-
-        $this->actingAs($admin)->get('/attack-frequency')->assertOk();
-
-        $this->assertDatabaseCount('security_events', 0);
-        $this->assertDatabaseCount('security_alerts', 0);
-        $this->assertDatabaseCount('incidents', 0);
-
-        AuthenticationLog::factory()->create([
-            'ip_address' => '203.0.113.30',
-            'occurred_at' => now()->subMinutes(4),
-        ]);
-
-        $this->actingAs($admin)->get('/attack-frequency')->assertOk();
-
-        $this->assertDatabaseCount('security_events', 1);
-        $this->assertDatabaseCount('security_alerts', 1);
-        $this->assertDatabaseCount('incidents', 1);
-
-        $incident = Incident::query()->firstOrFail();
-        $alert = SecurityAlert::query()->firstOrFail();
-
-        $this->assertSame($incident->id, $alert->incident_id);
-        $this->assertSame('203.0.113.30', $incident->source_ip);
-        $this->assertSame(31, $incident->event_count);
-        $this->assertSame(SecurityAlert::TYPE_REPEATED_IP_ACTIVITY, $alert->alert_type);
-        $this->assertSame('repeated_ip_activity_threshold', $alert->metadata['detection_rule']);
-
-        $this->actingAs($admin)
-            ->get('/incidents')
-            ->assertOk()
-            ->assertSee($incident->incident_id)
-            ->assertSee('Request spike detected from 203.0.113.30');
-
-        $this->actingAs($admin)
-            ->get('/incidents/'.$incident->id)
-            ->assertOk()
-            ->assertSee('Request/IP activity threshold exceeded')
-            ->assertSee('31');
     }
 
-    public function test_ip_activity_monitoring_deduplicates_same_event_window_and_respects_setting_changes(): void
+    public function test_ingestion_detection_deduplicates_repeated_ip_activity(): void
     {
         $admin = User::factory()->administrator()->create();
-        IntsecSettings::set('repeated_ip_activity_threshold', 30);
-
-        AuthenticationLog::factory()
-            ->count(31)
-            ->create([
-                'ip_address' => '203.0.113.31',
-                'occurred_at' => now()->subMinutes(5),
-            ]);
-
-        $this->actingAs($admin)->get('/attack-frequency')->assertOk();
-        $this->actingAs($admin)->get('/attack-frequency')->assertOk();
+        IntsecSettings::set('repeated_request_threshold', 2);
+        $service = app(RequestDetectionService::class);
+        $first = RequestActivity::factory()->create(['ip_address' => '8.8.8.8', 'occurred_at' => now()]);
+        $service->evaluate($first);
+        $second = RequestActivity::factory()->create(['ip_address' => '8.8.8.8', 'occurred_at' => now()]);
+        $service->evaluate($second);
+        $third = RequestActivity::factory()->create(['ip_address' => '8.8.8.8', 'occurred_at' => now()]);
+        $service->evaluate($third);
 
         $this->assertDatabaseCount('security_events', 1);
         $this->assertDatabaseCount('security_alerts', 1);
-        $this->assertDatabaseCount('incidents', 1);
-
-        AuthenticationLog::factory()
-            ->count(5)
-            ->create([
-                'ip_address' => '203.0.113.31',
-                'occurred_at' => now()->subMinutes(2),
-            ]);
-
-        $this->actingAs($admin)->get('/attack-frequency')->assertOk();
-
-        $this->assertDatabaseCount('security_events', 1);
-        $this->assertDatabaseCount('security_alerts', 1);
-        $this->assertDatabaseCount('incidents', 1);
-        $this->assertSame(36, Incident::query()->firstOrFail()->event_count);
-
-        IntsecSettings::set('repeated_ip_activity_threshold', 50);
-
-        AuthenticationLog::factory()
-            ->count(50)
-            ->create([
-                'ip_address' => '203.0.113.50',
-                'occurred_at' => now()->subMinutes(3),
-            ]);
-
-        $this->actingAs($admin)->get('/attack-frequency')->assertOk();
-
-        $this->assertDatabaseCount('incidents', 1);
-
-        AuthenticationLog::factory()->create([
-            'ip_address' => '203.0.113.50',
-            'occurred_at' => now()->subMinute(),
-        ]);
-
-        $this->actingAs($admin)->get('/attack-frequency')->assertOk();
-
-        $this->assertDatabaseCount('security_events', 2);
-        $this->assertDatabaseCount('security_alerts', 2);
-        $this->assertDatabaseCount('incidents', 2);
+        $this->assertSame(2, SecurityAlert::query()->firstOrFail()->occurrence_count);
+        $this->assertDatabaseCount('incidents', 0);
     }
 }

@@ -1,226 +1,41 @@
-<x-layouts.app title="Dashboard - INTSEC" wide>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-
-    <style>
-        .font-mono-data { font-family: 'JetBrains Mono', ui-monospace, monospace; }
-    </style>
-
-    <div class="flex flex-col gap-1 border-b border-zinc-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-            <p class="font-mono-data text-xs text-cyan-400">{{ auth()->user()->name }} · session active</p>
-            <h1 class="mt-2 text-2xl font-semibold text-white">User dashboard</h1>
-        </div>
-        <div class="flex items-center gap-2 border border-zinc-800 px-3 py-1.5 font-mono-data text-xs text-zinc-400">
-            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-            {{ auth()->user()->role === 'administrator' ? 'ADMINISTRATOR' : 'STANDARD USER' }}
-        </div>
-    </div>
+<x-layouts.app title="Security Overview - INTSEC" wide>
+    <header class="flex flex-col gap-4 border-b border-zinc-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div><p class="text-xs font-medium uppercase tracking-[0.2em] text-cyan-400">INTSEC operations</p><h1 class="mt-2 text-3xl font-semibold text-white">Security overview</h1><p class="mt-2 text-sm text-zinc-400">Read-only operational visibility from persisted telemetry and security records.</p></div>
+        <nav class="flex gap-3 text-xs" aria-label="Dashboard range">@foreach (['today' => 'Today','7d' => '7 days','30d' => '30 days','90d' => '90 days'] as $value => $label)<a href="{{ route('dashboard', ['range' => $value]) }}" class="{{ $activityRange === $value ? 'text-cyan-300' : 'text-zinc-500 hover:text-zinc-300' }}">{{ $label }}</a>@endforeach</nav>
+    </header>
 
     @if ($isAdministrator)
-        <div class="mt-6 grid gap-px border border-zinc-800 bg-zinc-800 md:grid-cols-2">
-            <div class="bg-zinc-950 p-5"><p class="text-xs uppercase tracking-[0.2em] text-zinc-500">Average alert acknowledgement</p><p class="mt-2 font-mono-data text-2xl text-cyan-300">{{ $averageAcknowledgementSeconds ? \Carbon\CarbonInterval::seconds((int) $averageAcknowledgementSeconds)->cascade()->forHumans(['short' => true, 'parts' => 2]) : 'No data' }}</p></div>
-            <div class="bg-zinc-950 p-5"><p class="text-xs uppercase tracking-[0.2em] text-zinc-500">Average incident resolution</p><p class="mt-2 font-mono-data text-2xl text-emerald-300">{{ $averageResolutionSeconds ? \Carbon\CarbonInterval::seconds((int) $averageResolutionSeconds)->cascade()->forHumans(['short' => true, 'parts' => 2]) : 'No data' }}</p></div>
-        </div>
-    @endif
-
-    {{-- Stat rail --}}
-    <div class="mt-6 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70 shadow-lg shadow-black/20">
-        <div class="grid divide-y divide-zinc-800 md:grid-cols-3 md:divide-x md:divide-y-0">
-            <div class="p-5">
-                <p class="text-xs uppercase tracking-[0.2em] text-zinc-500">Total attempts</p>
-                <p class="font-mono-data mt-3 text-3xl font-semibold text-white">{{ number_format($successfulLogins + $failedAttempts) }}</p>
-            </div>
-            <div class="p-5">
-                <p class="text-xs uppercase tracking-[0.2em] text-zinc-500">Successful</p>
-                <p class="font-mono-data mt-3 text-3xl font-semibold text-emerald-300">{{ number_format($successfulLogins) }}</p>
-            </div>
-            <div class="p-5">
-                <p class="text-xs uppercase tracking-[0.2em] text-zinc-500">Failed</p>
-                <p class="font-mono-data mt-3 text-3xl font-semibold text-amber-300">{{ number_format($failedAttempts) }}</p>
-            </div>
-        </div>
-    </div>
-
-    @if ($isAdministrator && $openSecurityAlertCount > 0)
-        <section class="mt-6 border border-amber-500/30 bg-amber-500/5">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 px-5 py-4">
-                <div class="flex items-center gap-3">
-                    <span class="h-2 w-2 rounded-full bg-amber-400"></span>
-                    <h2 class="font-semibold text-white">Security alerts</h2>
-                    <span class="rounded border border-amber-400/30 px-2 py-0.5 font-mono-data text-xs text-amber-200">{{ $openSecurityAlertCount }} open</span>
-                </div>
-                <a href="{{ route('alerts.index') }}" class="font-mono-data text-xs text-cyan-400 hover:text-cyan-300">view all alerts &rarr;</a>
-            </div>
-            <div class="divide-y divide-zinc-800">
-                @foreach ($recentSecurityAlerts as $alert)
-                    <a href="{{ route('alerts.show', $alert) }}" class="grid gap-2 px-5 py-4 text-sm transition hover:bg-zinc-900 md:grid-cols-[auto_1fr_auto] md:items-center">
-                        <span @class([
-                            'w-fit rounded border px-2 py-1 font-mono-data text-xs',
-                            'border-red-500/40 bg-red-500/10 text-red-200' => $alert->severity === 'Critical',
-                            'border-orange-500/40 bg-orange-500/10 text-orange-200' => $alert->severity === 'High',
-                            'border-amber-500/40 bg-amber-500/10 text-amber-200' => ! in_array($alert->severity, ['Critical', 'High'], true),
-                        ])>{{ $alert->severity }}</span>
-                        <span>
-                            <span class="block text-zinc-100">{{ $alert->typeLabel() }}</span>
-                            <span class="mt-1 block text-xs text-zinc-500">{{ $alert->title }}{{ $alert->source_ip ? ' · '.$alert->source_ip : '' }}</span>
-                        </span>
-                        <span class="font-mono-data text-xs text-zinc-500 md:text-right">{{ $alert->occurred_at?->diffForHumans() }}</span>
-                    </a>
-                @endforeach
-            </div>
+        <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Security metrics">
+            <x-security.metric-card label="Security events" :value="number_format($totalSecurityEvents)" />
+            <x-security.metric-card label="Active alerts" :value="number_format($openSecurityAlertCount)" tone="amber" />
+            <x-security.metric-card label="Open incidents" :value="number_format($openIncidentCount)" tone="red" />
+            <x-security.metric-card label="Blocked IP policies" :value="number_format($blockedIpCount)" tone="emerald" />
+        </section>
+    @else
+        <section class="mt-6 grid gap-4 sm:grid-cols-3">
+            <x-security.metric-card label="Successful logins" :value="number_format($successfulLogins)" tone="emerald" />
+            <x-security.metric-card label="Failed attempts" :value="number_format($failedAttempts)" tone="amber" />
+            <x-security.metric-card label="Recorded account events" :value="number_format($successfulLogins + $failedAttempts + $statusBreakdown['logout'])" />
         </section>
     @endif
 
-    {{-- Hero: activity trend + status mix --}}
-    <div class="mt-px grid border border-t-0 border-zinc-800 lg:grid-cols-[1.7fr_1fr]">
-        <section class="border-b border-zinc-800 p-6 lg:border-b-0 lg:border-r">
-            <div class="mb-5 flex items-center justify-between">
-                <div>
-                    <h2 class="font-semibold text-white">7-day activity trend</h2>
-                    <p class="text-sm text-zinc-500">Login attempts recorded per day</p>
-                </div>
-                <div class="flex items-center gap-3"><div class="flex gap-2 font-mono-data text-xs">@foreach (['today' => 'Today', '7d' => '7d', '30d' => '30d', '90d' => '90d'] as $value => $label)<a href="{{ route('dashboard', ['range' => $value]) }}" class="{{ $activityRange === $value ? 'text-cyan-300' : 'text-zinc-500 hover:text-zinc-300' }}">{{ $label }}</a>@endforeach</div><a href="{{ route('login-activity') }}" class="font-mono-data text-xs text-cyan-400 hover:text-cyan-300">view log →</a></div>
-            </div>
-            <div class="h-64">
-                <canvas id="activityTrendChart" aria-label="Authentication activity trend chart"></canvas>
-            </div>
-        </section>
-
-        <section class="p-6">
-            <div class="mb-5">
-                <h2 class="font-semibold text-white">Login status mix</h2>
-                <p class="text-sm text-zinc-500">Successful vs. failed vs. logouts</p>
-            </div>
-            <div class="h-64">
-                <canvas id="statusMixChart" aria-label="Authentication status mix chart"></canvas>
-            </div>
-        </section>
-    </div>
-
-    @if ($isAdministrator)
-        <div class="grid border border-t-0 border-zinc-800 lg:grid-cols-3">
-            <section class="border-b border-zinc-800 p-6 lg:border-b-0 lg:border-r"><h2 class="font-semibold text-white">Alerts by severity</h2><div class="mt-4 h-48"><canvas id="alertSeverityChart"></canvas></div></section>
-            <section class="border-b border-zinc-800 p-6 lg:border-b-0 lg:border-r"><div class="flex justify-between"><h2 class="font-semibold text-white">Top attacking IPs</h2><a href="{{ route('attack-frequency') }}" class="text-xs text-cyan-400">View all</a></div><div class="mt-4 divide-y divide-zinc-800">@forelse ($topAttackingIps as $ip)<a href="{{ route('attack-frequency', ['ip' => $ip['ip']]) }}" class="flex justify-between py-3 text-sm hover:text-cyan-300"><span class="font-mono-data text-zinc-300">{{ $ip['ip'] }}</span><span class="text-zinc-500">{{ $ip['count'] }}</span></a>@empty<p class="py-4 text-sm text-zinc-500">No activity recorded.</p>@endforelse</div></section>
-            <section class="p-6"><h2 class="font-semibold text-white">Needs attention</h2><div class="mt-4 divide-y divide-zinc-800">@forelse ($needsAttention['alerts'] as $alert)<a href="{{ route('alerts.show', $alert) }}" class="block py-3 text-sm"><span class="text-red-300">{{ $alert->severity }}</span> <span class="text-zinc-200">{{ $alert->title }}</span></a>@empty<p class="py-3 text-sm text-zinc-500">No unassigned high-severity alerts.</p>@endforelse @foreach ($needsAttention['incidents'] as $incident)<a href="{{ route('incidents.show', $incident) }}" class="block py-3 text-sm text-zinc-300">Stale incident: {{ $incident->incident_id }}</a>@endforeach</div></section>
-        </div>
-    @endif
-
-    {{-- Tool links --}}
-    <div class="mt-8 grid gap-px border border-zinc-800 bg-zinc-800 md:grid-cols-3">
-        <a href="{{ route('ip-locations') }}" class="group bg-zinc-950 p-5 transition hover:bg-zinc-900">
-            <p class="font-mono-data text-xs text-zinc-600">01</p>
-            <h3 class="mt-2 font-medium text-white">IP locations</h3>
-            <p class="mt-1 text-sm text-zinc-500">Approximate public IP geolocation</p>
-            <span class="mt-4 inline-flex font-mono-data text-xs text-cyan-400 opacity-0 transition group-hover:opacity-100">view map →</span>
-        </a>
-
-        <a href="{{ route('ddos-monitoring') }}" class="group bg-zinc-950 p-5 transition hover:bg-zinc-900">
-            <p class="font-mono-data text-xs text-zinc-600">02</p>
-            <h3 class="mt-2 font-medium text-white">DDoS / spikes</h3>
-            <p class="mt-1 text-sm text-zinc-500">Request surge monitoring</p>
-            <span class="mt-4 inline-flex font-mono-data text-xs text-cyan-400 opacity-0 transition group-hover:opacity-100">view details →</span>
-        </a>
-
-        <a href="{{ route('attack-frequency') }}" class="group bg-zinc-950 p-5 transition hover:bg-zinc-900">
-            <p class="font-mono-data text-xs text-zinc-600">03</p>
-            <h3 class="mt-2 font-medium text-white">Attack frequency</h3>
-            <p class="mt-1 text-sm text-zinc-500">Top offending IPs by volume</p>
-            <span class="mt-4 inline-flex font-mono-data text-xs text-cyan-400 opacity-0 transition group-hover:opacity-100">view analysis →</span>
-        </a>
-    </div>
-
-    {{-- Recent activity --}}
-    <section class="mt-8 border border-zinc-800">
-        <div class="border-b border-zinc-800 px-5 py-4">
-            <h2 class="font-semibold text-white">Recent authentication activity</h2>
-        </div>
-        <div class="divide-y divide-zinc-800">
-            @forelse ($recentActivity as $log)
-                <div class="grid gap-2 px-5 py-4 text-sm md:grid-cols-4">
-                    <span class="text-zinc-300">{{ ucfirst($log->action) }}</span>
-                    <span class="flex items-center gap-2 {{ $log->status === 'successful' ? 'text-emerald-300' : 'text-red-300' }}">
-                        <span class="h-1.5 w-1.5 rounded-full {{ $log->status === 'successful' ? 'bg-emerald-400' : 'bg-red-400' }}"></span>
-                        {{ ucfirst($log->status) }}
-                    </span>
-                    <span class="font-mono-data text-zinc-400">{{ $log->ip_address ?? 'Unknown IP' }}</span>
-                    <span class="font-mono-data text-zinc-500 md:text-right">{{ $log->occurred_at->diffForHumans() }}</span>
-                </div>
-            @empty
-                <p class="px-5 py-6 text-sm text-zinc-500">No authentication activity has been recorded yet.</p>
-            @endforelse
-        </div>
+    <section class="mt-6 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div><h2 class="font-semibold text-white">Request activity trend</h2><p class="text-sm text-zinc-500">Actual application requests from RequestActivity</p></div><div class="mt-5 h-64"><canvas id="requestTrend"></canvas></div></div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div><h2 class="font-semibold text-white">Authentication activity trend</h2><p class="text-sm text-zinc-500">Authentication telemetry only</p></div><div class="mt-5 h-64"><canvas id="authTrend"></canvas></div></div>
     </section>
+
+    @if ($isAdministrator)
+        <section class="mt-6 grid gap-4 xl:grid-cols-3">
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Recent important alerts</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($recentSecurityAlerts as $alert)<a href="{{ route('alerts.show', $alert) }}" class="block py-3"><div class="flex justify-between gap-3"><span class="text-sm text-zinc-200">{{ $alert->title }}</span><x-security.severity-badge :severity="$alert->severity" /></div><p class="mt-1 text-xs text-zinc-500">{{ $alert->source_ip ?? 'No source IP' }} · {{ $alert->occurred_at?->diffForHumans() }}</p></a>@empty<p class="py-6 text-sm text-zinc-500">No active alerts.</p>@endforelse</div></div>
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Top active IPs</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($topActiveIps as $entry)<a href="{{ route('attack-frequency', ['ip' => $entry->ip_address]) }}" class="flex justify-between gap-3 py-3 text-sm"><span class="font-mono text-zinc-300">{{ $entry->ip_address }}</span><span class="text-zinc-500">{{ number_format($entry->request_count) }} requests</span></a>@empty<p class="py-6 text-sm text-zinc-500">No request telemetry yet.</p>@endforelse</div></div>
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Recent incidents</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($recentIncidents as $incident)<a href="{{ route('incidents.show', $incident) }}" class="block py-3"><div class="flex justify-between gap-3"><span class="text-sm text-zinc-200">{{ $incident->title }}</span><x-security.status-badge :status="$incident->status" /></div><p class="mt-1 text-xs text-zinc-500">{{ $incident->incident_id }} · {{ $incident->last_detected_at?->diffForHumans() }}</p></a>@empty<p class="py-6 text-sm text-zinc-500">No incidents.</p>@endforelse</div></div>
+        </section>
+    @endif
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        const trendLabels = @json(collect($activityTrend)->pluck('label')->all());
-        const trendData = @json(collect($activityTrend)->pluck('count')->all());
-
-        const statusLabels = ['Successful', 'Failed', 'Logouts'];
-        const statusData = [
-            {{ $statusBreakdown['successful'] ?? 0 }},
-            {{ $statusBreakdown['failed'] ?? 0 }},
-            {{ $statusBreakdown['logout'] ?? 0 }},
-        ];
-
-        const severityCanvas = document.getElementById('alertSeverityChart');
-        if (severityCanvas) {
-            new Chart(severityCanvas, { type: 'doughnut', data: { labels: @json(array_keys($alertSeverityDistribution)), datasets: [{ data: @json(array_values($alertSeverityDistribution)), backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#22c55e'], borderColor: '#09090b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#d4d4d8', boxWidth: 8 } } } } });
-        }
-
-        new Chart(document.getElementById('activityTrendChart'), {
-            type: 'bar',
-            data: {
-                labels: trendLabels,
-                datasets: [{
-                    label: 'Authentication events',
-                    data: trendData,
-                    borderRadius: 2,
-                    backgroundColor: 'rgba(34, 211, 238, 0.7)',
-                    borderColor: 'rgba(34, 211, 238, 1)',
-                    borderWidth: 1,
-                    maxBarThickness: 24,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { ticks: { color: '#a1a1aa', font: { family: 'JetBrains Mono' } }, grid: { display: false } },
-                    y: {
-                        ticks: { color: '#a1a1aa', precision: 0, font: { family: 'JetBrains Mono' } },
-                        grid: { color: 'rgba(255,255,255,0.06)' },
-                        beginAtZero: true,
-                    },
-                },
-            },
-        });
-
-        new Chart(document.getElementById('statusMixChart'), {
-            type: 'doughnut',
-            data: {
-                labels: statusLabels,
-                datasets: [{
-                    data: statusData,
-                    backgroundColor: ['#22d3ee', '#f59e0b', '#a78bfa'],
-                    borderColor: '#09090b',
-                    borderWidth: 2,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '65%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { color: '#d4d4d8', padding: 16, usePointStyle: true, boxWidth: 8, font: { family: 'JetBrains Mono', size: 11 } },
-                    },
-                },
-            },
-        });
+        const chartOptions = {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#71717a'},grid:{display:false}},y:{beginAtZero:true,ticks:{color:'#71717a',precision:0},grid:{color:'rgba(255,255,255,.06)'}}}};
+        new Chart(document.getElementById('requestTrend'), {type:'line',data:{labels:@json(collect($requestTrend)->pluck('label')),datasets:[{data:@json(collect($requestTrend)->pluck('count')),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,.12)',fill:true,tension:.3}]},options:chartOptions});
+        new Chart(document.getElementById('authTrend'), {type:'line',data:{labels:@json(collect($authenticationTrend)->pluck('label')),datasets:[{data:@json(collect($authenticationTrend)->pluck('count')),borderColor:'#34d399',backgroundColor:'rgba(52,211,153,.1)',fill:true,tension:.3}]},options:chartOptions});
     </script>
 </x-layouts.app>

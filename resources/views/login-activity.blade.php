@@ -1,39 +1,13 @@
-<x-layouts.app title="Login Activity - INTSEC">
-    <h1 class="text-3xl font-semibold text-white">Login activity</h1>
-    <p class="mt-2 text-sm text-zinc-400">Recent authentication events recorded for your account.</p>
-
-    <section class="mt-8 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900">
-        <table class="w-full text-left text-sm">
-            <thead class="border-b border-zinc-800 text-xs uppercase text-zinc-500">
-                <tr>
-                    <th class="px-4 py-3">When</th>
-                    <th class="px-4 py-3">Action</th>
-                    <th class="px-4 py-3">Status</th>
-                    <th class="px-4 py-3">IP address</th>
-                    <th class="px-4 py-3">User agent</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-zinc-800">
-                @forelse ($logs as $log)
-                    <tr>
-                        <td class="px-4 py-3 text-zinc-300">{{ $log->occurred_at->format('M j, Y H:i') }}</td>
-                        <td class="px-4 py-3 text-zinc-300">{{ ucfirst($log->action) }}</td>
-                        <td class="px-4 py-3">
-                            <span class="{{ $log->status === 'successful' ? 'text-emerald-300' : 'text-red-300' }}">{{ ucfirst($log->status) }}</span>
-                        </td>
-                        <td class="px-4 py-3 text-zinc-400">{{ $log->ip_address ?? 'Unknown' }}</td>
-                        <td class="max-w-md truncate px-4 py-3 text-zinc-500">{{ $log->user_agent ?? 'Unknown' }}</td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="px-4 py-8 text-center text-zinc-400">No login activity has been recorded yet.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </section>
-
-    <div class="mt-6">
-        {{ $logs->links() }}
-    </div>
+<x-layouts.app title="Login Activity - INTSEC" wide>
+    <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">Authentication telemetry</p><h1 class="mt-2 text-3xl font-semibold text-white">Login activity</h1><p class="mt-2 text-sm text-zinc-400">Login attempts, successful authentication, and logout only—general requests are not shown here.</p></header>
+    <form method="GET" class="mt-6 grid gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-2 xl:grid-cols-6">
+        <select name="status" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All outcomes</option><option value="successful" @selected(request('status')==='successful')>Successful</option><option value="failed" @selected(request('status')==='failed')>Failed</option></select>
+        <select name="action" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All actions</option><option value="login" @selected(request('action')==='login')>Login</option><option value="logout" @selected(request('action')==='logout')>Logout</option></select>
+        <input name="identity" value="{{ request('identity') }}" placeholder="Identity/email" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
+        <input name="ip" value="{{ request('ip') }}" placeholder="IP address" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
+        <input type="date" name="from" value="{{ request('from') }}" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
+        <button class="rounded-md bg-cyan-400 px-3 py-2 text-sm font-semibold text-zinc-950">Apply filters</button>
+    </form>
+    <section class="mt-6 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60"><div class="overflow-x-auto"><table class="min-w-[1100px] w-full text-left text-sm"><thead class="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500"><tr><th class="px-4 py-3">Time</th><th class="px-4 py-3">Identity / user</th><th class="px-4 py-3">Action</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">IP</th><th class="px-4 py-3">Device / browser</th><th class="px-4 py-3">Approx. location</th><th class="px-4 py-3">Context</th></tr></thead><tbody class="divide-y divide-zinc-800">@forelse ($logs as $log)<tr><td class="px-4 py-3 text-zinc-400">{{ $log->occurred_at?->format('M j, Y H:i:s') }}</td><td class="px-4 py-3"><span class="block text-zinc-200">{{ $log->user?->name ?? 'Unknown user' }}</span><span class="text-xs text-zinc-500">{{ $log->attempted_identity ?? '—' }}</span></td><td class="px-4 py-3">{{ ucfirst($log->action) }}</td><td class="px-4 py-3 {{ $log->status === 'successful' ? 'text-emerald-300' : 'text-red-300' }}">{{ ucfirst($log->status) }}</td><td class="px-4 py-3 font-mono text-zinc-300">{{ $log->ip_address ?? 'Unknown' }}</td><td class="px-4 py-3 text-zinc-400">{{ $log->device_type ?? 'Unknown' }} · {{ $log->browser_name ?? 'Unknown' }}</td><td class="px-4 py-3 text-zinc-400">{{ collect([$log->city,$log->country])->filter()->join(', ') ?: 'Not enriched' }}</td><td class="px-4 py-3 text-zinc-400">{{ $log->failure_reason ? str_replace('_',' ',$log->failure_reason) : '—' }}</td></tr>@empty<tr><td colspan="8" class="px-4 py-10 text-center text-zinc-500">No authentication activity matches these filters.</td></tr>@endforelse</tbody></table></div></section>
+    <div class="mt-6">{{ $logs->links() }}</div>
 </x-layouts.app>

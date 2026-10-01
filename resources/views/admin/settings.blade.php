@@ -73,6 +73,49 @@
             </div>
         </section>
 
+        @php
+            $groups = [
+                'Authentication detection' => [
+                    'brute_force_threshold' => 'Failures against one account',
+                    'password_spray_threshold' => 'Distinct identities from one IP',
+                    'distributed_attack_threshold' => 'Distinct IPs attacking one account',
+                ],
+                'Request monitoring' => [
+                    'repeated_request_threshold' => 'Repeated requests per IP',
+                    'request_window_seconds' => 'Request window (seconds)',
+                    'request_spike_threshold' => 'Application request spike',
+                    'repeated_404_threshold' => 'Repeated 404 responses',
+                    'repeated_403_threshold' => 'Repeated 403 responses',
+                    'repeated_401_threshold' => 'Repeated 401 responses',
+                    'sensitive_path_probe_threshold' => 'Sensitive-path probes',
+                ],
+                'Correlation and deduplication' => [
+                    'correlation_window_minutes' => 'Correlation window (minutes)',
+                    'alert_cooldown_minutes' => 'Alert cooldown (minutes)',
+                ],
+            ];
+        @endphp
+        @foreach ($groups as $heading => $fields)
+            <section class="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+                <h2 class="text-lg font-semibold text-white">{{ $heading }}</h2>
+                <div class="mt-5 grid gap-5 md:grid-cols-2">
+                    @foreach ($fields as $key => $label)
+                        <label class="block"><span class="text-sm font-medium text-zinc-200">{{ $label }}</span>
+                            <input type="number" min="1" name="{{ $key }}" value="{{ old($key, $settings[$key]) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
+                        </label>
+                    @endforeach
+                </div>
+            </section>
+        @endforeach
+
+        <section class="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+            <h2 class="text-lg font-semibold text-white">IP intelligence</h2>
+            <div class="mt-5 grid gap-5 md:grid-cols-2">
+                <label class="flex items-center gap-3 text-sm text-zinc-200"><input type="hidden" name="ip_enrichment_enabled" value="0"><input type="checkbox" name="ip_enrichment_enabled" value="1" @checked(old('ip_enrichment_enabled', $settings['ip_enrichment_enabled'])) class="rounded border-zinc-700 bg-zinc-950"> Queue enrichment for public IPs</label>
+                <label class="block"><span class="text-sm font-medium text-zinc-200">Cache duration (hours)</span><input type="number" min="1" name="ip_enrichment_cache_hours" value="{{ old('ip_enrichment_cache_hours', $settings['ip_enrichment_cache_hours']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"></label>
+            </div>
+        </section>
+
         @if ($errors->any())
             <div class="rounded-md border border-red-700 bg-red-950 px-4 py-3 text-sm text-red-100">
                 <ul class="list-disc pl-5">

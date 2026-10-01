@@ -9,6 +9,13 @@ use Illuminate\Support\Facades\Schema;
 
 class AuthActivityLogger
 {
+    public function __construct(
+        private ClientIpResolver $clientIpResolver,
+        private UserAgentClassifier $userAgentClassifier,
+        private IpEnrichmentService $ipEnrichment,
+        private AuthenticationDetectionService $authenticationDetection,
+    ) {}
+
     public function record(
         Request $request,
         string $action,
@@ -18,28 +25,13 @@ class AuthActivityLogger
         ?string $failureReason = null,
         bool $withIpIntelligence = true,
     ): AuthenticationLog {
-        $ipAddress = (string) ($request->ip() ?? '');
-        $location = $withIpIntelligence
-            ? app(IpWhoisService::class)->lookup($ipAddress)
-            : null;
-        $userAgentAnalysis = app(UserAgentClassifier::class)->analyze($request->userAgent());
+        $ipAddress = $this->clientIpResolver->resolve($request)['ip'];
+        $userAgentAnalysis = $this->userAgentClassifier->analyze($request->userAgent());
 
         $payload = [
             'user_id' => $user?->id,
             'attempted_identity' => $attemptedIdentity,
             'ip_address' => $ipAddress,
-            'country' => $location['country'] ?? null,
-            'country_code' => $location['country_code'] ?? null,
-            'region' => $location['region'] ?? null,
-            'region_code' => $location['region_code'] ?? null,
-            'city' => $location['city'] ?? null,
-            'latitude' => $location['latitude'] ?? null,
-            'longitude' => $location['longitude'] ?? null,
-            'postal' => $location['postal'] ?? null,
-            'isp' => $location['isp'] ?? null,
-            'organization' => $location['organization'] ?? null,
-            'asn' => $location['asn'] ?? null,
-            'timezone' => $location['timezone'] ?? null,
             'user_agent' => $userAgentAnalysis['user_agent'],
             'action' => $action,
             'status' => $status,
@@ -64,6 +56,8 @@ class AuthActivityLogger
         }
 
         $record = AuthenticationLog::create($payload);
+        $this->ipEnrichment->observe($ipAddress);
+        $this->authenticationDetection->evaluate($record);
 
         return $record;
     }

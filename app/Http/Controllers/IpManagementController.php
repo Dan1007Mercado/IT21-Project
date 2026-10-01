@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\BlockedIp;
+use App\Models\IpIntelligence;
 use App\Services\Security\IpManagementService;
 use App\Services\Security\IpNetwork;
-use App\Services\Security\IpWhoisService;
 use App\Validation\IpOrCidrRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,11 +13,9 @@ use Illuminate\View\View;
 
 class IpManagementController extends Controller
 {
-    public function __construct(protected IpManagementService $ipManagement)
-    {
-    }
+    public function __construct(protected IpManagementService $ipManagement) {}
 
-    public function index(Request $request, IpWhoisService $whois): View
+    public function index(Request $request): View
     {
         $query = BlockedIp::query()->with(['administrator', 'alert', 'incident']);
 
@@ -62,31 +60,13 @@ class IpManagementController extends Controller
                 ->count(),
         ];
 
-        // IP intelligence context (stored auth-log geo first, live lookup
-        // as fallback; blocking never depends on it).
-        $intel = [];
-        foreach ($rules as $rule) {
-            if (IpNetwork::isCidr($rule->ip_address)) {
-                continue;
-            }
-
-            $stored = \App\Models\AuthenticationLog::query()
-                ->where('ip_address', $rule->ip_address)
-                ->whereNotNull('country')
-                ->orderByDesc('occurred_at')
-                ->first(['country', 'region', 'city', 'isp', 'organization', 'asn']);
-
-            if ($stored) {
-                $intel[$rule->id] = $stored->toArray();
-                continue;
-            }
-
-            try {
-                $intel[$rule->id] = $whois->lookup($rule->ip_address);
-            } catch (\Throwable) {
-                $intel[$rule->id] = null;
-            }
-        }
+        $intelligence = IpIntelligence::query()
+            ->whereIn('ip_address', $rules->getCollection()->pluck('ip_address')->filter(fn (string $ip): bool => ! IpNetwork::isCidr($ip)))
+            ->get()
+            ->keyBy('ip_address');
+        $intel = $rules->getCollection()->mapWithKeys(fn (BlockedIp $rule): array => [
+            $rule->id => $intelligence->get($rule->ip_address)?->toArray(),
+        ])->all();
 
         return view('ip-management.index', [
             'rules' => $rules,

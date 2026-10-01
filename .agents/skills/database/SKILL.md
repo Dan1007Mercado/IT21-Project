@@ -1,93 +1,51 @@
-# Database Skill
+---
+name: database
+description: Design or change INTSEC MySQL/Laravel persistence, migrations, Eloquent relationships, indexes, retention-aware telemetry tables, factories, or seeders.
+---
 
-## Standards
+# INTSEC Database and Eloquent
 
-Use proper database design and Laravel persistence patterns.
+Use MySQL through Laravel's database layer. Schema changes use forward migrations and must work from a clean database. Use foreign keys and constraints where appropriate, consistent timestamps, and Eloquent relationships/casts.
 
-- Add migrations for schema changes.
-- Use Eloquent models and relationships for all domain data.
-- Keep database constraints and indexes sensible.
-- Avoid fake demo tables or ad hoc storage for application functionality.
+## Core records
 
-## Seed data
+The domain may include:
 
-- Seed realistic development data only through the real application models and tables.
-- Ensure seeders align with production data structures.
+- users and authorization data
+- `authentication_logs`
+- `request_activities`
+- `security_events`
+- `security_alerts`
+- incidents, remarks, and status histories
+- blocked IP/network policies
+- audit logs and system settings
+- detection-rule configuration, IP enrichment, and monitored sources where introduced
 
-## Domain records
+Keep authentication telemetry, request telemetry, interpreted events, actionable alerts, and incidents separate. Avoid dashboard-specific copies or excessive duplicate storage.
 
-The database should support:
+## Queryable fields and indexes
 
-- users and roles
-- authentication logs
-- security events
-- incidents and remarks
-- blocked IP management
-- settings and operational metadata
+Base indexes on actual filters, joins, grouping, retention, and ordering. Common candidates include:
 
-## Implementation principle
+- `request_activities`: `occurred_at`, `ip_address`, `user_id`, `status_code`, route name/path, and classification
+- `authentication_logs`: `occurred_at`, `ip_address`, `user_id`, attempted identity, and status/action
+- `security_events`: `occurred_at`, `source_ip`, event type, severity, source, and source-scoped external event ID
+- `security_alerts`: `occurred_at`, `source_ip`, severity, status, and alert type/rule
+- `incidents`: status, severity, source IP, assignment, and `last_detected_at`
+- `blocked_ips`: normalized address/network, action, enabled/status, and expiration
 
-All data used by dashboard widgets and admin screens should originate from real database queries and persisted records.
-# Database and Eloquent Skill
+Prefer composite indexes that match important queries and scoped uniqueness such as source plus external event ID. Do not add every possible single-column index; consider write cost and selectivity.
 
-Use MySQL through Laravel's database layer.
+## Modeling rules
 
-## Core Tables
+Use typed columns for queryable core fields and JSON only for supplementary metadata/evidence. Normalize IPv4/IPv6 and CIDR values consistently through domain code. Preserve event time separately from ingestion/record timestamps when sources can submit historical events.
 
-The initial domain should include:
+Model many-to-many evidence explicitly when an incident or alert can link multiple records; do not force a single foreign key if requirements need correlation. Use transactions for multi-record workflows that require atomicity.
 
-* users
-* roles
-* authentication_logs
-* security_events
-* incidents
-* incident_remarks
-* blocked_ips
+## Volume and lifecycle
 
-## Relationships
+Request telemetry can be high volume. Plan pagination, bounded queries, aggregation, retention/archival policy, and batch deletion without weakening investigation requirements. Detection queries must use event occurrence time consistently and avoid unbounded scans.
 
-At minimum consider relationships such as:
+## Factories and seeders
 
-User
-→ Role
-
-User
-→ Authentication Logs
-
-User
-→ Security Events
-
-Security Event
-→ Incident
-
-Incident
-→ Incident Remarks
-
-User
-→ Incident Remarks
-
-User
-→ Blocked IP records as administrator/auditor
-
-## Principles
-
-Use foreign keys where appropriate.
-
-Use indexes for frequently queried fields, especially security-monitoring fields such as:
-
-* IP address
-* timestamp
-* severity
-* status
-* event type
-* user ID
-
-Use appropriate timestamps.
-
-Do not duplicate data unnecessarily.
-
-Do not create dashboard-specific copies of security data.
-
-Factories and seeders must populate the real domain tables.
-
-Seed data should look realistic enough to demonstrate the system but must not contain real credentials or sensitive information.
+Populate production tables through production models with realistic, non-sensitive records. Never create fake dashboard-only data or embed real credentials/secrets. Seed relationships and timestamps coherently enough to exercise real queries.

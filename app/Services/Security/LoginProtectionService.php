@@ -2,24 +2,22 @@
 
 namespace App\Services\Security;
 
-use App\Models\AuthenticationLog;
 use App\Models\AuditLog;
+use App\Models\AuthenticationLog;
 use App\Models\BlockedIp;
-use App\Models\SecurityAlert;
-use App\Models\SecurityEvent;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class LoginProtectionService
 {
-    public function __construct(protected IpManagementService $ipManagementService)
-    {
-    }
+    public function __construct(
+        protected IpManagementService $ipManagementService,
+        protected ClientIpResolver $clientIpResolver,
+    ) {}
 
     public function isBlocked(Request $request): bool
     {
-        $ipAddress = $request->ip() ?? '';
+        $ipAddress = $this->clientIpResolver->resolve($request)['ip'] ?? '';
 
         // Centralized decision (CIDR-aware, allow/block precedence).
         return $this->ipManagementService->isBlocked($ipAddress);
@@ -27,7 +25,7 @@ class LoginProtectionService
 
     public function recordFailedAttempt(Request $request, ?User $user, ?string $attemptedIdentity): bool
     {
-        $ipAddress = (string) ($request->ip() ?? '');
+        $ipAddress = $this->clientIpResolver->resolve($request)['ip'] ?? '';
         $attemptedIdentity ??= '';
 
         $maxAttempts = IntsecSettings::getInt('max_login_attempts', 5);
@@ -39,17 +37,7 @@ class LoginProtectionService
             ->where('action', 'login')
             ->where('status', 'failed')
             ->where('occurred_at', '>=', $windowStart)
-            ->where(function ($query) use ($ipAddress, $attemptedIdentity, $user) {
-                $query->where('ip_address', $ipAddress);
-
-                if ($user) {
-                    $query->orWhere('user_id', $user->id);
-                }
-
-                if ($attemptedIdentity !== '') {
-                    $query->orWhere('attempted_identity', $attemptedIdentity);
-                }
-            })
+            ->where('ip_address', $ipAddress)
             ->count();
 
         if ($recentFailures < $maxAttempts) {
@@ -59,47 +47,12 @@ class LoginProtectionService
         $blockDuration = IntsecSettings::getInt('login_block_duration_minutes', 15);
         $blocked = $this->blockIp($request, $blockDuration, 'Too many failed login attempts');
 
-        if ($blocked) {
-            $event = SecurityEvent::record(
-                'Repeated failed authentication',
-                'authentication',
-                'High',
-                $user,
-                $ipAddress,
-                [
-                    'attempted_identity' => $attemptedIdentity,
-                    'failed_attempt_count' => $recentFailures,
-                    'threshold' => $maxAttempts,
-                    'window_minutes' => $windowMinutes,
-                ],
-                'Multiple failed login attempts exceeded the configured threshold and triggered an automatic temporary block.'
-            );
-
-            SecurityAlert::query()->create([
-                'alert_id' => SecurityAlert::generateAlertId(),
-                'title' => 'Brute-force login threshold exceeded',
-                'alert_type' => SecurityAlert::TYPE_BRUTE_FORCE,
-                'severity' => 'High',
-                'description' => "{$recentFailures} failed login attempts from {$ipAddress} exceeded the configured threshold of {$maxAttempts} within {$windowMinutes} minutes.",
-                'security_event_id' => $event->id,
-                'source_ip' => $ipAddress,
-                'metadata' => [
-                    'detection_rule' => 'repeated_authentication_threshold',
-                    'failed_attempt_count' => $recentFailures,
-                    'threshold' => $maxAttempts,
-                    'window_minutes' => $windowMinutes,
-                ],
-                'status' => 'new',
-                'occurred_at' => now(),
-            ]);
-        }
-
-        return true;
+        return $blocked || $this->ipManagementService->isBlocked($ipAddress);
     }
 
     public function blockIp(Request $request, int $durationMinutes, string $reason): bool
     {
-        $ipAddress = $request->ip() ?? '';
+        $ipAddress = $this->clientIpResolver->resolve($request)['ip'] ?? '';
 
         if ($ipAddress === '') {
             return false;
@@ -160,7 +113,7 @@ class LoginProtectionService
                 'expires_at' => $blockedIp->expires_at?->toISOString(),
             ],
             'Blocked IP record was manually released.',
-            $request->ip(),
+            $this->clientIpResolver->resolve($request)['ip'],
             $administrator,
         );
     }

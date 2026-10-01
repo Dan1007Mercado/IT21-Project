@@ -10,14 +10,18 @@ use Illuminate\Support\Facades\DB;
 
 class ExternalSecurityEventService
 {
-    public function __construct(protected IpActivityIncidentService $ipActivityIncidents)
-    {
-    }
+    public function __construct(
+        protected IpActivityIncidentService $ipActivityIncidents,
+        protected DetectionEngine $detectionEngine,
+    ) {}
 
     /** @return array{event: SecurityEvent, alert: ?SecurityAlert, incident: ?Incident, duplicate: bool} */
     public function ingest(array $payload): array
     {
-        if (! empty($payload['event_id']) && ($existing = SecurityEvent::query()->where('external_event_id', $payload['event_id'])->first())) {
+        if (! empty($payload['event_id']) && ($existing = SecurityEvent::query()
+            ->where('source', $payload['source'])
+            ->where('external_event_id', $payload['event_id'])
+            ->first())) {
             return ['event' => $existing, 'alert' => null, 'incident' => null, 'duplicate' => true];
         }
 
@@ -54,7 +58,37 @@ class ExternalSecurityEventService
 
             $alert = null;
             if ($eventType === 'login_failed' && $failedCount >= IntsecSettings::getInt('repeated_authentication_threshold', 5)) {
-                $alert = $this->upsertBruteForceAlert($event, $failedCount);
+                $alert = $this->detectionEngine->record([
+                    'rule_key' => 'external.auth.repeated_ip_failures',
+                    'rule_name' => 'Repeated external authentication failures',
+                    'alert_type' => SecurityAlert::TYPE_BRUTE_FORCE,
+                    'title' => 'Repeated failed authentication from monitored application',
+                    'description' => "{$failedCount} failed authentication events exceeded the configured threshold.",
+                    'severity' => 'High',
+                    'source_ip' => $ip,
+                    'grouping_key' => $source.'|'.$ip,
+                    'threshold' => IntsecSettings::getInt('repeated_authentication_threshold', 5),
+                    'window_seconds' => IntsecSettings::getInt('login_attempt_window_minutes', 5) * 60,
+                    'observed_count' => $failedCount,
+                    'security_event_id' => $event->id,
+                    'metadata' => ['source' => $source],
+                ]);
+            } elseif ($eventType === 'monitored_login_attempt') {
+                $alert = $this->detectionEngine->record([
+                    'rule_key' => 'external.decoy_access',
+                    'rule_name' => 'Monitored decoy login access',
+                    'alert_type' => SecurityAlert::TYPE_DECOY_ACCESS,
+                    'title' => 'Monitored decoy login endpoint accessed',
+                    'description' => 'A monitored application reported access to its controlled decoy login endpoint.',
+                    'severity' => 'High',
+                    'source_ip' => $ip,
+                    'grouping_key' => $source.'|'.$ip,
+                    'threshold' => 1,
+                    'window_seconds' => 1,
+                    'observed_count' => 1,
+                    'security_event_id' => $event->id,
+                    'metadata' => ['source' => $source, 'controlled_endpoint' => true],
+                ]);
             }
 
             $incident = $this->ipActivityIncidents->evaluate(
@@ -71,17 +105,30 @@ class ExternalSecurityEventService
 
     private function classify(string $eventType, int $failedCount, int $activityCount, bool $contextuallySuspicious): string
     {
-        if ($eventType === 'monitored_login_attempt' || $eventType === 'unauthorized_access') return 'Suspicious';
-        if ($contextuallySuspicious) return 'Suspicious';
-        if ($eventType === 'login_failed' && $failedCount >= IntsecSettings::getInt('repeated_authentication_threshold', 5)) return 'High';
-        if ($activityCount > IntsecSettings::getInt('repeated_ip_activity_threshold', 10) * 3) return 'Critical';
-        if ($activityCount > IntsecSettings::getInt('repeated_ip_activity_threshold', 10)) return 'Suspicious';
+        if ($eventType === 'monitored_login_attempt' || $eventType === 'unauthorized_access') {
+            return 'Suspicious';
+        }
+        if ($contextuallySuspicious) {
+            return 'Suspicious';
+        }
+        if ($eventType === 'login_failed' && $failedCount >= IntsecSettings::getInt('repeated_authentication_threshold', 5)) {
+            return 'High';
+        }
+        if ($activityCount > IntsecSettings::getInt('repeated_ip_activity_threshold', 10) * 3) {
+            return 'Critical';
+        }
+        if ($activityCount > IntsecSettings::getInt('repeated_ip_activity_threshold', 10)) {
+            return 'Suspicious';
+        }
+
         return $eventType === 'login_failed' ? 'Warning' : 'Normal';
     }
 
     private function isSuspiciousLoginContext(string $source, string $ip, string $eventType, ?string $userAgent): bool
     {
-        if ($eventType !== 'login_success' || blank($userAgent)) return false;
+        if ($eventType !== 'login_success' || blank($userAgent)) {
+            return false;
+        }
 
         // The monitored application's source IP and user-agent are evaluated
         // against recent successful activity. This is intentionally contextual
@@ -96,23 +143,5 @@ class ExternalSecurityEventService
     private function titleFor(string $eventType): string
     {
         return ucwords(str_replace('_', ' ', $eventType)).' reported by monitored application';
-    }
-
-    private function upsertBruteForceAlert(SecurityEvent $event, int $count): SecurityAlert
-    {
-        $alert = SecurityAlert::query()->where('alert_type', SecurityAlert::TYPE_BRUTE_FORCE)
-            ->where('source_ip', $event->source_ip)->where('status', 'new')
-            ->where('occurred_at', '>=', now()->subMinutes(IntsecSettings::getInt('login_attempt_window_minutes', 5)))->latest('occurred_at')->first();
-        if ($alert) {
-            $alert->update(['security_event_id' => $event->id, 'severity' => 'High', 'metadata' => ['failed_attempt_count' => $count]]);
-            return $alert;
-        }
-        return SecurityAlert::query()->create([
-            'alert_id' => SecurityAlert::generateAlertId(), 'title' => 'Repeated failed authentication from monitored application',
-            'alert_type' => SecurityAlert::TYPE_BRUTE_FORCE, 'severity' => 'High',
-            'description' => "{$count} failed authentication events exceeded the configured threshold.",
-            'security_event_id' => $event->id, 'source_ip' => $event->source_ip,
-            'metadata' => ['failed_attempt_count' => $count, 'source' => $event->source], 'status' => 'new', 'occurred_at' => now(),
-        ]);
     }
 }

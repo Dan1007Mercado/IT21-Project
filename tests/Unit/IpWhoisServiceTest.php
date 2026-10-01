@@ -172,7 +172,7 @@ class IpWhoisServiceTest extends TestCase
         $this->assertSame(9299, $result['asn']);
     }
 
-    public function test_auth_activity_logger_enriches_public_ip_geolocation(): void
+    public function test_auth_activity_logger_observes_public_ip_without_synchronous_geolocation(): void
     {
         Http::fake([
             'https://ipwho.is/8.8.8.8' => Http::response([
@@ -210,11 +210,11 @@ class IpWhoisServiceTest extends TestCase
         );
 
         $this->assertSame('8.8.8.8', $log->ip_address);
-        $this->assertSame('United States', $log->country);
-        $this->assertSame('Mountain View', $log->city);
-        $this->assertSame(37.4056, $log->latitude);
-        $this->assertSame(-122.0775, $log->longitude);
-        $this->assertSame('Google LLC', $log->organization);
-        $this->assertSame('America/Los_Angeles', $log->timezone);
+        $this->assertNull($log->country);
+        $this->assertDatabaseHas('ip_intelligences', [
+            'ip_address' => '8.8.8.8',
+            'ip_type' => 'public',
+        ]);
+        Http::assertNothingSent();
     }
 }

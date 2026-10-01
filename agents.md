@@ -1,387 +1,136 @@
 # INTSEC — Master Development Instructions
 
-## Project
+## Purpose
 
-INTSEC: An Integrated Intrusion Monitoring and Incident Response System.
+INTSEC is an Integrated Intrusion Monitoring and Incident Response System. It detects, monitors, alerts on, investigates, and responds to suspicious activity in monitored web applications.
 
-INTSEC is a web-based, application-level intrusion monitoring and incident response system.
+INTSEC is application-level. It may observe HTTP/HTTPS metadata available after TLS termination; it does not inspect raw packets and is not a network IDS or firewall.
 
-The system monitors authentication and application access activity and provides administrators with visibility, investigation, incident tracking, and application-level response capabilities.
+## Instruction hierarchy
 
-INTSEC is NOT a network-level IDS.
+Use this precedence:
 
-## Technology Stack
+1. Current user task and approved requirements
+2. This file
+3. `.agents/rules/*`
+4. Applicable `.agents/skills/*`
+5. Existing implementation conventions
 
-Use the existing project stack:
+Inspect installed dependencies and working code before choosing APIs. Do not silently follow stale proposals. Read this file, relevant rules, and only the skills applicable to the task.
 
-* PHP
-* Laravel 12
-* Filament
-* MySQL
-* Blade
-* Livewire
-* Tailwind CSS
+## Stack
 
-Use Laravel conventions and the APIs provided by the versions actually installed in the project.
+Use versions actually installed in `composer.lock` and `package-lock.json`. The current baseline is PHP 8.2+, Laravel 12, MySQL, Blade, Tailwind CSS 4, and Vite.
 
-Do not downgrade the framework or introduce unnecessary alternative frameworks.
+Filament, Livewire, Reverb/Echo, Leaflet, and GeoIP providers are valid when needed, but verify installation first. Do not code against a package merely because a proposal mentions it. Do not downgrade Laravel or introduce competing frameworks without demonstrated need.
 
-## Current Development Phase
+## Current direction
 
-Build the working core system first.
+Approved application-level capabilities include:
 
-Current scope:
+- authentication, sessions, accounts, RBAC, and settings
+- distinct authentication and HTTP request telemetry
+- authenticated external security-event ingestion
+- deterministic rule-based detection, including spikes, repeated IPs, brute force, password spraying, probing, and decoy endpoints
+- security events, actionable alerts, correlation, incidents, remarks, and status history
+- centralized IP resolution/classification, public-IP intelligence, approximate GeoIP, and mapping
+- application-level IP allow/block distribution and enforcement
+- audit logging and administrator accountability
+- real-time-capable delivery, including Reverb/Echo where practical
+- hybrid Blade/Tailwind/Livewire and optional Filament interfaces
+- realistic factories/seeders and automated security tests
 
-1. Authentication
-2. Login and logout
-3. User accounts
-4. Roles / RBAC
-5. User dashboard
-6. Filament administrator panel
-7. Security dashboard
-8. Authentication logging
-9. Security event management
-10. Incident management
-11. Investigation remarks
-12. Incident status management
-13. Application-level IP blocking management
-14. System/account settings
-15. Database migrations
-16. Models and relationships
-17. Factories/seeders for realistic development data
-18. Automated tests for core functionality
+This is direction, not evidence that each capability already exists. Inspect and implement requested behavior end to end.
 
-## Explicitly Deferred
+## Domain language
 
-Do NOT implement these features in the current phase:
+- `AuthenticationLog`: authentication-specific telemetry—attempts, successes, failures, and logout.
+- `RequestActivity`: general HTTP/HTTPS request telemetry—route/path, method, response status, duration, and resolved client IP.
+- External security event: telemetry submitted by an authenticated monitored application or sensor.
+- `SecurityEvent`: persisted, interpreted security-relevant activity.
+- `SecurityAlert`: actionable detection requiring administrator attention, with traceable reason and workflow state.
+- `Incident`: investigation/response case correlating relevant evidence.
+- `BlockedIp`: application-level ALLOW/BLOCK policy with lifecycle and provenance.
+- `AuditLog`: accountability record for significant administrative/security operations.
 
-* Google reCAPTCHA
-* Email OTP
-* TOTP / Authenticator 2FA
-* OAuth
-* MaxMind GeoLite2
-* Laravel Reverb
-* WebSockets
-* Laravel Echo real-time monitoring
-* Decoy/bait login portal
-* Automated intrusion-detection rules
-* Advanced threat intelligence
-* AI/ML detection
+Other relevant concepts include `User`, authorization, `IncidentRemark`, `IncidentStatusHistory`, `SystemSetting`, detection rules, IP enrichment, and monitored source identity.
 
-Design the architecture so these features can be added later, but do not implement them now.
+Telemetry is observation. An event is interpreted activity. An alert is an actionable detection. An incident is a managed case. Do not collapse these layers or use `AuthenticationLog` as a proxy for request volume. Never generate fake records solely to populate dashboards.
 
-## Architectural Principle
+## Architecture invariants
 
-Laravel is the core application and security-logic layer.
+- Laravel owns domain, application, and security logic; controllers and presentation remain thin.
+- Capture, enrichment, detection, alerting, and correlation never depend on opening a dashboard.
+- Use middleware for request-lifecycle capture/enforcement where appropriate.
+- Use services/actions/domain classes/jobs for non-trivial processing and events/listeners for decoupled delivery.
+- Enforce authorization server-side with policies, gates, and middleware.
+- Persisted database records are the source of truth; dashboards are primarily read/query operations.
+- Centralize client-IP resolution, normalization, and classification; configure trusted proxies deliberately.
+- Use queues where they materially improve reliability, with explicit retries and failure behavior.
+- Keep detection deterministic, explainable, and traceable.
+- Monitoring failure should not unnecessarily take monitored business applications offline.
 
-Filament is the administrator/security-operations interface.
+Preferred flow:
 
-MySQL is the persistent data layer.
+`Application request / authentication / external event → capture → normalize → persist telemetry → enrich → detect → classify → alert → correlate → incident → response → audit`
 
-Blade/Livewire may be used for user-facing application screens.
+The stages need not each be a class, but responsibilities must remain clear.
 
-Filament must not become the location of core business or security logic.
+## Security invariants
 
-Non-trivial business logic should live in Laravel services/actions/domain-oriented classes.
+- Never persist passwords, session secrets, CSRF tokens, access tokens, `Authorization` headers, or raw sensitive credentials.
+- Do not indiscriminately persist headers, cookies, query strings, or bodies. Allowlist useful metadata and redact sensitive fields.
+- Regenerate sessions after login and invalidate them on logout. An authenticated request is not a login success.
+- Authenticate and validate external connectors, deduplicate external IDs, rate-limit appropriately, and mitigate replay where practical.
+- Client-provided severity is evidence, not automatically authoritative classification.
+- Distinguish public, private, loopback/reserved, and invalid IPs. Do not GeoIP non-public addresses or blindly trust forwarding headers.
+- Enforce IP policy server-side with deterministic precedence, expiration, and practical self-lockout protection.
+- Escape attacker-controlled UI values and audit security-sensitive changes.
+- Handle telemetry/logging failures deliberately without needless business-workflow outages.
 
-## Core Domain
+Read `.agents/rules/security.md` and applicable specialized skills before security-sensitive work.
 
-The core domain currently includes:
+## UI philosophy
 
-* User
-* Role
-* AuthenticationLog
-* SecurityEvent
-* Incident
-* IncidentRemark
-* BlockedIp
+Use Blade/Tailwind/Livewire for specialized dashboards, maps, timelines, dense monitoring, and investigations when they offer better UX. Use Filament, when installed, for conventional administration and CRUD where its native components fit.
 
-Use proper Eloquent relationships and database constraints.
+Neither UI may own detection or business logic. Preserve working specialized screens. The shell owns shared navigation, branding, account controls, theme, and mobile navigation; pages own their useful widths, grids, maps, charts, and investigation layouts.
 
-## Authentication
+Operational UI must be responsive, accessible, database-driven, paginated where needed, and explicit about loading, empty, stale, and error states. Use consistent severity/status semantics and confirm destructive or security-sensitive actions.
 
-Implement normal application authentication.
+## Data and migrations
 
-The system must support:
-
-* login
-* logout
-* authenticated sessions
-* user account management
-* password management appropriate to the current Laravel authentication implementation
-
-Authentication attempts must be designed so that successful and failed authentication activity can be persisted as security-relevant application data.
-
-Do not log passwords, authentication secrets, or sensitive credentials.
-
-## RBAC
-
-At minimum support:
-
-* Administrator
-* Standard User
-
-Administrators have access to the administrative/security monitoring functionality.
-
-Standard users must not be able to access administrator functionality.
-
-Authorization must be enforced server-side.
-
-Do not rely on hiding navigation items as the security mechanism.
-
-## Security Dashboard
-
-The administrator dashboard should provide database-driven visibility into:
-
-* total security events
-* failed authentication attempts
-* suspicious/security events
-* high-severity events
-* critical events
-* open incidents
-* blocked IPs
-* recent security events
-* authentication activity trends
-* event severity distribution
-
-Do not hardcode statistics.
-
-Use actual database queries.
-
-## Authentication Logs
-
-Authentication activity should capture useful investigation context such as:
-
-* user
-* attempted username/email where appropriate
-* IP address
-* user agent
-* authentication status
-* action
-* timestamp
-* failure reason where applicable
-* request-related context where appropriate
-
-Do not store unnecessary sensitive information.
-
-## Security Events
-
-Security events represent security-relevant activity identified by the application's monitoring/detection layer.
-
-The system should support severity levels:
-
-* Normal
-* Warning
-* Suspicious
-* High
-* Critical
-
-A SecurityEvent should contain sufficient context for an administrator to understand and investigate the event.
-
-Security events must be persisted in the database.
-
-Do not use fake dashboard-only security event data.
-
-## Incidents
-
-An incident represents an investigation/response record associated with one or more security events.
-
-The system should support:
-
-* incident title
-* description
-* severity
-* status
-* related security event
-* assigned administrator where appropriate
-* investigation remarks
-* resolution information
-* opened/resolved timestamps
-
-Incident status should support a sensible lifecycle such as:
-
-* Open
-* Investigating
-* Contained
-* Resolved
-* Closed
-
-Do not add unnecessary incident states without a project requirement.
-
-## Investigation Remarks
-
-Investigation remarks must be persisted as records.
-
-Include:
-
-* incident
-* author
-* remark
-* timestamp
-
-The system should maintain an investigation history instead of replacing previous remarks.
-
-## IP Blocking
-
-INTSEC includes application-level IP blocking.
-
-Administrators must be able to manage blocked IP addresses.
-
-Blocked IP records should include:
-
-* IP address
-* reason
-* administrator responsible
-* blocked timestamp
-* optional expiration
-* status
-
-The implementation must ultimately be enforceable by Laravel application logic/middleware.
-
-A Filament button alone is not considered IP blocking.
-
-## Filament
-
-Use Filament as the administrative interface.
-
-Build appropriate Filament:
-
-* Resources
-* Pages
-* Widgets
-* Tables
-* Forms
-* Filters
-* Actions
-* Infolists
-* Notifications
-
-Primary navigation should be organized around:
-
-Dashboard
-
-Monitoring
-
-* Security Events
-* Authentication Logs
-* IP Activity / relevant monitoring view
-
-Incident Response
-
-* Incidents
-* Blocked IPs
-
-Administration
-
-* Users
-* Roles
-
-Settings
-
-Do not recreate standard Filament CRUD functionality using Blade unless there is a clear UX reason.
-
-## UI
-
-The administrator interface should visually communicate a security-monitoring system.
-
-Use:
-
-* clear status/severity badges
-* readable tables
-* filters
-* sorting
-* search
-* meaningful empty states
-* confirmation dialogs for destructive actions
-* notifications for important administrator actions
-* responsive layouts
-
-Use Filament native components wherever practical.
-
-## Database
-
-Use migrations for schema changes.
-
-Use Eloquent models and relationships.
-
-Use factories and seeders for realistic development/test data.
-
-Do not create fake/demo-only databases or tables.
-
-Seeded data must use the same production models and tables that the real application will use.
-
-## Security
-
-All security-sensitive functionality must be authorized server-side.
-
-Validate user input.
-
-Protect against mass assignment.
-
-Use Laravel validation and authorization facilities.
-
-Do not trust client-side role information.
-
-Do not expose secrets.
-
-Do not log passwords, authentication tokens, OTP values, or other credentials.
-
-Do not implement security controls solely in JavaScript or the frontend.
-
-## Testing
-
-Important functionality must have automated tests.
-
-At minimum test:
-
-* authentication
-* authorization
-* RBAC
-* administrator access restrictions
-* user access restrictions
-* security-event creation/display
-* incident creation/update
-* incident remarks
-* IP-blocking behavior
-* relevant Filament authorization behavior
-
-## Development Behavior
-
-Before implementing a feature:
-
-1. Inspect the existing application.
-2. Read applicable AGENTS.md and .agents instructions.
-3. Reuse existing architecture where appropriate.
-4. Do not unnecessarily rewrite working code.
-5. Make changes incrementally.
-6. Run migrations/tests after significant changes.
-7. Fix errors rather than leaving broken code.
-8. Verify that the application actually runs.
-
-Do not claim a feature is complete merely because files were generated.
-
-A feature is complete when the Laravel application can execute it successfully.
-
-## Important Design Principle
-
-INTSEC should have this general flow:
-
-Authentication / Application Activity
-↓
-Authentication Logs / Security Data
-↓
-Security Events
-↓
-Severity Classification
-↓
-Administrator Monitoring
-↓
-Incident Investigation
-↓
-Response
-↓
-Resolution
-
-The current phase focuses on building the application foundation and administrative workflow.
-
-The future detection engine must be able to use the same production database structures and services without redesigning the entire application.
+- Use migrations for schema changes.
+- Use foreign keys, constraints, and indexes suited to monitoring queries.
+- Keep queryable core fields in typed columns; reserve JSON for supplementary metadata.
+- Avoid duplicate and dashboard-specific storage.
+- Update models, relationships, factories/seeders, queries, and tests with schema changes.
+- Ensure migrations work from a clean database.
+
+## Testing and completion
+
+Test changed behavior, especially sessions/authentication, RBAC, telemetry privacy/capture, deterministic detection, alert deduplication, incident history, IP classification/enforcement, external ingestion, auditing, and dashboard non-mutation.
+
+Run targeted tests, then the broader relevant suite. A feature is not complete because a class, route, view, or migration exists. It must be wired into the real workflow, authorized, persisted where required, and behaviorally tested.
+
+## Workflow
+
+1. Read this file, applicable rules, and relevant skills.
+2. Inspect dependencies and existing implementation.
+3. Identify invariants that must not regress.
+4. Make incremental Laravel-conventional changes.
+5. Add migrations/model updates and automated tests.
+6. Run targeted and broader relevant tests.
+7. Report verified behavior and remaining limitations accurately.
+
+## Explicit exclusions
+
+Unless newly approved, INTSEC is not:
+
+- a packet sniffer, PCAP analyzer, or full network IDS
+- a kernel, host, or network firewall
+- a full enterprise SIEM or commercial SOC
+- an autonomous AI/ML IDS
+- a malware-analysis sandbox
+- a full standalone honeypot
+- an offensive-security platform

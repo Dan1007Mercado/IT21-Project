@@ -2,9 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\AuditLog;
-use App\Models\AuthenticationLog;
-use App\Models\BlockedIp;
+use App\Models\SecurityAlert;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,6 +59,7 @@ class SecuritySettingsAndAuditTest extends TestCase
         SystemSetting::query()->updateOrCreate(['key' => 'max_login_attempts'], ['value' => '2']);
         SystemSetting::query()->updateOrCreate(['key' => 'login_attempt_window_minutes'], ['value' => '5']);
         SystemSetting::query()->updateOrCreate(['key' => 'login_block_duration_minutes'], ['value' => '15']);
+        SystemSetting::query()->updateOrCreate(['key' => 'repeated_authentication_threshold'], ['value' => '2']);
 
         $request = $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.25'])
             ->post('/login', [
@@ -95,14 +94,14 @@ class SecuritySettingsAndAuditTest extends TestCase
             'ip_address' => '203.0.113.25',
         ]);
 
-        $alert = \App\Models\SecurityAlert::query()->firstOrFail();
-        $this->assertSame(\App\Models\SecurityAlert::TYPE_BRUTE_FORCE, $alert->alert_type);
-        $this->assertSame('repeated_authentication_threshold', $alert->metadata['detection_rule']);
+        $alert = SecurityAlert::query()->firstOrFail();
+        $this->assertSame(SecurityAlert::TYPE_REPEATED_AUTH_FAILURES, $alert->alert_type);
+        $this->assertSame('auth.repeated_ip_failures', $alert->metadata['rule_key']);
         $this->assertSame(2, $alert->metadata['threshold']);
 
         $this->actingAs($admin)
             ->get('/alerts')
             ->assertOk()
-            ->assertSee('Brute-force login attempts');
+            ->assertSee('Repeated authentication failures');
     }
 }

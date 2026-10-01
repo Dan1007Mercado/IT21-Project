@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\BlockedIp;
 use App\Models\SecurityAlert;
-use App\Models\SecurityEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -51,6 +50,28 @@ class ExternalSecurityEventApiTest extends TestCase
         $this->withToken('test-intsec-token')->postJson('/api/security/events', $payload)->assertCreated();
         $this->withToken('test-intsec-token')->postJson('/api/security/events', $payload)->assertOk()->assertJsonPath('data.duplicate', true);
         $this->assertDatabaseCount('security_events', 1);
+    }
+
+    public function test_event_ids_are_deduplicated_within_each_authenticated_source(): void
+    {
+        config(['intsec.event_sources' => ['hotel-booking', 'second-app']]);
+        $payload = $this->payload();
+        $this->withToken('test-intsec-token')->postJson('/api/security/events', $payload)->assertCreated();
+        $this->withToken('test-intsec-token')->postJson('/api/security/events', array_merge($payload, ['source' => 'second-app']))->assertCreated();
+        $this->assertDatabaseCount('security_events', 2);
+    }
+
+    public function test_monitored_decoy_login_creates_a_high_actionable_alert(): void
+    {
+        $this->withToken('test-intsec-token')->postJson('/api/security/events', $this->payload([
+            'event_type' => 'monitored_login_attempt',
+            'route' => '/security/monitored-login',
+        ]))->assertCreated();
+
+        $this->assertDatabaseHas('security_alerts', [
+            'rule_key' => 'external.decoy_access',
+            'severity' => 'High',
+        ]);
     }
 
     public function test_authenticated_client_can_retrieve_current_active_blocks(): void

@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\AuthenticationLog;
+use App\Models\IpIntelligence;
+use App\Models\RequestActivity;
 use App\Models\SecurityAlert;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -100,7 +102,7 @@ class AuthWebTest extends TestCase
 
         $this->actingAs($user)->get('/dashboard')
             ->assertOk()
-            ->assertSee('User dashboard');
+            ->assertSee('Security overview');
 
         $this->actingAs($user)->get('/ip-locations')
             ->assertOk()
@@ -108,11 +110,11 @@ class AuthWebTest extends TestCase
 
         $this->actingAs($user)->get('/ddos-monitoring')
             ->assertOk()
-            ->assertSee('Request volume spikes');
+            ->assertSee('Application request spikes');
 
         $this->actingAs($user)->get('/attack-frequency')
             ->assertOk()
-            ->assertSee('Attack frequency');
+            ->assertSee('IP Request Frequency');
 
         $this->actingAs($user)->get('/login-activity')
             ->assertOk()
@@ -131,8 +133,8 @@ class AuthWebTest extends TestCase
         $this->actingAs($user)
             ->get('/dashboard')
             ->assertOk()
-            ->assertSee('7-day activity trend')
-            ->assertSee('Login status mix');
+            ->assertSee('Request activity trend')
+            ->assertSee('Authentication activity trend');
     }
 
     public function test_administrator_dashboard_displays_open_security_alert_notifications(): void
@@ -151,9 +153,8 @@ class AuthWebTest extends TestCase
         $this->actingAs($admin)
             ->get('/dashboard')
             ->assertOk()
-            ->assertSee('Security alerts')
-            ->assertSee('1 open')
-            ->assertSee('Brute-force login attempts')
+            ->assertSee('Recent important alerts')
+            ->assertSee('Brute-force login threshold exceeded')
             ->assertSee('203.0.113.77');
     }
 
@@ -161,9 +162,9 @@ class AuthWebTest extends TestCase
     {
         $user = User::factory()->create();
 
-        AuthenticationLog::factory()->create([
-            'user_id' => $user->id,
+        IpIntelligence::query()->create([
             'ip_address' => '8.8.8.8',
+            'ip_type' => 'public',
             'country' => 'United States',
             'country_code' => 'US',
             'region' => 'California',
@@ -175,14 +176,15 @@ class AuthWebTest extends TestCase
             'organization' => 'Google LLC',
             'asn' => 15169,
             'timezone' => 'America/Los_Angeles',
-            'occurred_at' => now()->subMinutes(5),
+            'last_seen_at' => now()->subMinutes(5),
         ]);
+        RequestActivity::factory()->create(['user_id' => $user->id, 'ip_address' => '8.8.8.8', 'ip_type' => 'public']);
 
         $this->actingAs($user)
             ->get('/ip-locations')
             ->assertOk()
             ->assertSee('IP locations')
-            ->assertSee('Approximate geographic locations');
+            ->assertSee('Approximate public-IP enrichment');
     }
 
     public function test_user_can_update_profile(): void

@@ -1,76 +1,12 @@
-<x-layouts.app title="Attack Frequency - INTSEC">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-            <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Security monitoring</p>
-            <h1 class="mt-2 text-3xl font-semibold text-white">IP Request Frequency</h1>
-        </div>
-        <div class="flex flex-wrap gap-2 text-xs text-zinc-300">
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Tracked IPs: {{ $attackFrequency->total() }}</span>
-        </div>
-    </div>
-
-    <form method="GET" action="{{ route('attack-frequency') }}" class="mt-6 flex flex-wrap gap-3">
-        <input
-            type="text"
-            name="search"
-            value="{{ request('search') }}"
-            placeholder="Search IP address"
-            class="min-w-[220px] flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500"
-        >
-
-        <select name="min_requests" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
-            <option value="">All request counts</option>
-            @foreach ([5, 10, 25, 50, 100] as $threshold)
-                <option value="{{ $threshold }}" {{ request('min_requests') == (string) $threshold ? 'selected' : '' }}>
-                    {{ $threshold }}+ requests
-                </option>
-            @endforeach
-        </select>
-
-        <button type="submit" class="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-200">
-            Filter
-        </button>
-        <a href="{{ route('attack-frequency') }}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300">
-            Clear
-        </a>
+<x-layouts.app title="IP Request Frequency - INTSEC" wide>
+    <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">Request telemetry</p><h1 class="mt-2 text-3xl font-semibold text-white">IP Request Frequency</h1><p class="mt-2 text-sm text-zinc-400">Read-only aggregation of application requests. Viewing this page does not run detection.</p></header>
+    <form method="GET" class="mt-6 grid gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-2 xl:grid-cols-5">
+        <input name="ip" value="{{ request('ip') }}" placeholder="IP contains…" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
+        <select name="range" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">@foreach (['1h'=>'Last hour','24h'=>'Last 24 hours','7d'=>'Last 7 days','30d'=>'Last 30 days'] as $value=>$label)<option value="{{ $value }}" @selected(request('range','7d')===$value)>{{ $label }}</option>@endforeach</select>
+        <select name="classification" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All classifications</option>@foreach (['normal','suspicious','malicious'] as $value)<option value="{{ $value }}" @selected(request('classification')===$value)>{{ ucfirst($value) }}</option>@endforeach</select>
+        <select name="status_family" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All statuses</option>@foreach (['2xx','3xx','4xx','5xx'] as $value)<option value="{{ $value }}" @selected(request('status_family')===$value)>{{ $value }}</option>@endforeach</select>
+        <div class="flex gap-2"><button class="flex-1 rounded-md bg-cyan-400 px-3 py-2 text-sm font-semibold text-zinc-950">Filter</button><a href="{{ route('attack-frequency') }}" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300">Clear</a></div>
     </form>
-
-    <section class="mt-8 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900">
-        <div class="border-b border-zinc-800 px-5 py-4">
-            <h2 class="text-lg font-semibold text-white">Frequency detail</h2>
-        </div>
-
-        <div class="overflow-x-auto">
-            <table class="min-w-full border-collapse text-left text-sm text-zinc-200">
-                <thead class="bg-zinc-950/70">
-                    <tr>
-                        <th class="px-5 py-3 font-medium text-zinc-300">IP Address</th>
-                        <th class="px-5 py-3 font-medium text-zinc-300">Request Count</th>
-                        <th class="px-5 py-3 font-medium text-zinc-300">Activity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($attackFrequency as $entry)
-                        <tr class="border-t border-zinc-800">
-                            <td class="px-5 py-4 font-mono text-zinc-100">{{ $entry['ip'] }}</td>
-                            <td class="px-5 py-4 text-zinc-300">{{ $entry['count'] }}</td>
-                            <td class="px-5 py-4">
-                                <span class="inline-flex rounded-full border px-2.5 py-1 text-xs {{ $entry['count'] >= 10 ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' }}">
-                                    {{ $entry['count'] >= 10 ? 'High activity' : 'Normal activity' }}
-                                </span>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="3" class="px-5 py-10 text-center text-zinc-400">No repeated attack patterns detected for the current filter.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <div class="mt-6 px-1 pb-2">
-        {{ $attackFrequency->appends(request()->query())->links() }}
-    </div>
+    <section class="mt-6 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60"><div class="overflow-x-auto"><table class="min-w-[1000px] w-full text-left text-sm"><thead class="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500"><tr><th class="px-4 py-3">IP</th><th class="px-4 py-3">Requests</th><th class="px-4 py-3">Last seen</th><th class="px-4 py-3">Top path</th><th class="px-4 py-3">4xx / 403 / 404</th><th class="px-4 py-3">Class</th><th class="px-4 py-3">Policy</th></tr></thead><tbody class="divide-y divide-zinc-800">@forelse ($attackFrequency as $row)<tr><td class="px-4 py-3 font-mono text-zinc-200">{{ $row['ip'] }}</td><td class="px-4 py-3">{{ number_format($row['count']) }}</td><td class="px-4 py-3 text-zinc-400">{{ \Carbon\Carbon::parse($row['last_seen'])->diffForHumans() }}</td><td class="max-w-xs truncate px-4 py-3 font-mono text-zinc-400">{{ $row['route'] ?? '—' }}</td><td class="px-4 py-3 text-zinc-400">{{ $row['client_errors'] }} / {{ $row['forbidden_count'] }} / {{ $row['not_found_count'] }}</td><td class="px-4 py-3">{{ ucfirst($row['classification'] ?? 'normal') }} · {{ ucfirst($row['ip_type']) }}</td><td class="px-4 py-3 {{ $row['is_blocked'] ? 'text-red-300' : 'text-zinc-500' }}">{{ $row['is_blocked'] ? 'Blocked' : 'No block' }}</td></tr>@empty<tr><td colspan="7" class="px-4 py-10 text-center text-zinc-500">No request telemetry matches these filters.</td></tr>@endforelse</tbody></table></div></section>
+    <div class="mt-6">{{ $attackFrequency->links() }}</div>
 </x-layouts.app>

@@ -1,84 +1,15 @@
-<x-layouts.app title="DDoS / Request Spikes - INTSEC">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-            <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Security monitoring</p>
-            <h1 class="mt-2 text-3xl font-semibold text-white">Request volume spikes</h1>
-        </div>
-        <div class="flex flex-wrap gap-2 text-xs text-zinc-300">
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Current requests: {{ $currentRequests ?? 0 }}</span>
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Peak requests: {{ $peakRequests ?? 0 }}</span>
-            <span class="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1.5">Suspicious spikes: {{ $suspiciousSpikes ?? 0 }}</span>
-        </div>
-    </div>
-
-    <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-        <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-white">Request volume</h2>
-            <span class="text-xs uppercase tracking-wide text-zinc-500">7-day watch</span>
-        </div>
-        <div class="h-80">
-            <canvas id="ddosMonitoringChart" aria-label="DDoS monitoring chart"></canvas>
-        </div>
+<x-layouts.app title="Application Request Spikes - INTSEC" wide>
+    <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">Application-layer monitoring</p><h1 class="mt-2 text-3xl font-semibold text-white">Application request spikes</h1><p class="mt-2 max-w-3xl text-sm text-zinc-400">Request-volume monitoring from HTTP telemetry after TLS termination. This is not network-layer DDoS detection.</p></header>
+    <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <x-security.metric-card label="Current hour" :value="number_format($currentRequests)" />
+        <x-security.metric-card label="24-hour peak" :value="number_format($peakRequests)" tone="amber" />
+        <x-security.metric-card label="Threshold" :value="number_format($spikeThreshold)" tone="zinc" />
+        <x-security.metric-card label="Spike buckets" :value="number_format($suspiciousSpikes)" tone="red" />
     </section>
-
-    <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-        <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-white">Traffic pattern</h2>
-            <span class="text-xs uppercase tracking-wide text-zinc-500">By hour</span>
-        </div>
-
-        <div class="grid gap-3 md:grid-cols-3">
-            @foreach ($hourlyTrend as $bucket)
-                <div class="rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
-                    <div class="flex items-center justify-between gap-3 text-sm">
-                        <span class="font-medium text-zinc-200">{{ $bucket['label'] }}</span>
-                        <span class="rounded-full bg-red-500/10 px-2 py-1 text-xs font-medium text-red-300">{{ $bucket['count'] }} req</span>
-                    </div>
-                    <div class="mt-2 h-2.5 overflow-hidden rounded-full bg-zinc-800">
-                        <div class="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-400" style="width: {{ $peakRequests > 0 ? min(($bucket['count'] / $peakRequests) * 100, 100) : 0 }}%"></div>
-                    </div>
-                </div>
-            @endforeach
-        </div>
+    <section class="mt-6 rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div class="flex flex-wrap justify-between gap-3"><div><h2 class="font-semibold text-white">Requests by hour</h2><p class="text-sm text-zinc-500">Last 24 hours</p></div><div class="text-xs text-zinc-500">4xx: {{ number_format($clientErrorCount) }} · 5xx: {{ number_format($serverErrorCount) }}</div></div><div class="mt-5 h-80"><canvas id="requestVolume"></canvas></div></section>
+    <section class="mt-6 grid gap-4 lg:grid-cols-2">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Top source IPs</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($topIps as $row)<div class="flex justify-between py-3 text-sm"><span class="font-mono text-zinc-300">{{ $row->ip_address }}</span><span class="text-zinc-500">{{ number_format($row->total) }}</span></div>@empty<p class="py-6 text-sm text-zinc-500">No request telemetry.</p>@endforelse</div></div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Top routes and paths</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($topRoutes as $row)<div class="flex justify-between gap-4 py-3 text-sm"><span class="min-w-0 truncate font-mono text-zinc-300">{{ $row->path }}</span><span class="text-zinc-500">{{ number_format($row->total) }}</span></div>@empty<p class="py-6 text-sm text-zinc-500">No request telemetry.</p>@endforelse</div></div>
     </section>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        const requestLabels = @json(collect($hourlyTrend)->pluck('label')->all());
-        const requestData = @json(collect($hourlyTrend)->pluck('count')->all());
-
-        new Chart(document.getElementById('ddosMonitoringChart'), {
-            type: 'line',
-            data: {
-                labels: requestLabels,
-                datasets: [{
-                    label: 'Requests per hour',
-                    data: requestData,
-                    borderColor: '#f87171',
-                    backgroundColor: 'rgba(248, 113, 113, 0.25)',
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: true,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                },
-                scales: {
-                    x: {
-                        ticks: { color: '#a1a1aa' },
-                        grid: { display: false },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: '#a1a1aa', precision: 0 },
-                        grid: { color: 'rgba(255,255,255,0.06)' },
-                    },
-                },
-            },
-        });
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script>new Chart(document.getElementById('requestVolume'),{type:'line',data:{labels:@json($hourlyTrend->pluck('label')),datasets:[{data:@json($hourlyTrend->pluck('count')),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,.12)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#71717a'},grid:{display:false}},y:{beginAtZero:true,ticks:{color:'#71717a',precision:0},grid:{color:'rgba(255,255,255,.06)'}}}}});</script>
 </x-layouts.app>

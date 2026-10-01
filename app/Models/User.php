@@ -56,6 +56,11 @@ class User extends Authenticatable
         return $this->hasMany(AuthenticationLog::class);
     }
 
+    public function requestActivities(): HasMany
+    {
+        return $this->hasMany(RequestActivity::class);
+    }
+
     public function incidents(): HasMany
     {
         return $this->hasMany(Incident::class);

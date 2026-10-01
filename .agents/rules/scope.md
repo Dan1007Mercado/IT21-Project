@@ -1,43 +1,40 @@
-# INTSEC Scope Rule
+# INTSEC Scope Rules
 
-All development must remain within the approved INTSEC project proposal.
+INTSEC is an application-level intrusion monitoring and incident response system. It may observe HTTP/HTTPS request metadata available after TLS termination and receive authenticated telemetry from monitored web applications.
 
-INTSEC is an application-level intrusion monitoring and incident response system.
+## Approved application-level scope
 
-Do not turn the project into:
+INTSEC may implement:
 
-* a network IDS
-* a network firewall
-* a SIEM
-* a full honeypot infrastructure
-* an AI/ML detection system
-* a commercial-grade SOC platform
+- authentication/session monitoring and account/RBAC administration
+- safe HTTP/HTTPS request telemetry and request-rate/spike monitoring
+- explainable rule-based intrusion detection
+- brute-force, password-spray, distributed-account-attempt, and failed-then-success detection
+- repeated 401/403/404 detection and suspicious path probing
+- controlled decoy-login or decoy-endpoint monitoring
+- user-agent/device signals and repeated-IP analysis
+- centralized IP resolution and public/private/loopback/reserved/invalid classification
+- public-IP intelligence, approximate GeoIP, and Leaflet/OpenStreetMap visualization
+- security events, alerts, deduplication, correlation, incidents, remarks, and status history
+- application-level IP ALLOW/BLOCK policy, distribution, and enforcement
+- authenticated monitored-application event ingestion and blocklist APIs
+- real-time-capable delivery, including Laravel Reverb/Echo where practical
+- database-driven dashboards, audit trails, settings, and automated security tests
 
-Current implementation must prioritize:
+These are permitted capabilities, not requirements for every task. Implement only what the request needs and verify optional dependencies first.
 
-* authentication
-* RBAC
-* user management
-* administrator dashboard
-* security event visibility
-* authentication logs
-* incident management
-* investigation remarks
-* incident status
-* application-level IP blocking
-* settings
+## Boundaries
 
-Do not implement deferred security technologies until explicitly requested:
+INTSEC is not:
 
-* reCAPTCHA
-* Email OTP
-* TOTP / 2FA
-* OAuth
-* MaxMind GeoLite2
-* Reverb
-* WebSockets
-* Echo
-* decoy login
-* automated detection rules
+- a packet-sniffing IDS, raw-packet collector, or PCAP analyzer
+- a kernel, host, or network firewall
+- a full enterprise SIEM or commercial SOC
+- an autonomous AI/ML IDS
+- a malware-analysis sandbox
+- a full standalone honeypot infrastructure
+- an active offensive-security platform
 
-When a requested feature is outside the proposal, stop and identify that it is outside the current project scope before implementing it.
+Application-level decoy routes are allowed; a separate general-purpose honeypot platform is not. Application-level block policy is allowed; claiming upstream network enforcement is not.
+
+When uncertain, prefer a reasonable application-level interpretation consistent with the current task. Do not block approved functionality because older guidance called it deferred. Ask only when requested behavior materially crosses these boundaries.

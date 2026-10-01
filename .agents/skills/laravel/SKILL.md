@@ -1,45 +1,43 @@
-# Laravel Development Skill
+---
+name: laravel
+description: Build or review INTSEC Laravel application code, including controllers, middleware, services, jobs, events, queries, validation, authorization, and Eloquent workflows.
+---
 
-Use standard Laravel conventions.
+# Laravel Development
 
-Prefer:
+Use the Laravel version and APIs actually installed in `composer.json` and `composer.lock`; proposals do not override runtime dependencies.
 
-* Eloquent models
-* migrations
-* factories
-* seeders
-* Form Requests where appropriate
-* policies
-* middleware
-* services/actions for non-trivial business logic
-* Laravel validation
-* configuration/environment variables
-* feature tests
-* database transactions where appropriate
+## Application structure
 
-Do not place large amounts of application logic inside controllers.
+- Keep controllers thin and use Form Requests for substantial input validation/authorization.
+- Put non-trivial workflows in focused services/actions/domain classes.
+- Use DTOs or value objects only when they clarify boundaries or invariants.
+- Use middleware for request telemetry, trusted request context, and application-level IP enforcement.
+- Use policies, gates, and route middleware for server-side authorization.
+- Use jobs for slow, retryable, or asynchronous work such as enrichment or batch detection.
+- Use events/listeners to decouple persisted alert creation from optional notifications/broadcasting.
+- Do not put business logic in Blade, Filament Resources, client code, or dashboard rendering.
+- Avoid unnecessary repository/pattern layers when Eloquent and a focused service are sufficient.
 
-Do not place business logic inside Blade templates.
+## Data and consistency
 
-Do not place security enforcement only in frontend code.
+Use Eloquent relationships, casts, query scopes, and query services for reusable operational metrics. Use transactions and row locks where multi-record security state must remain consistent. Make jobs and externally retried operations idempotent.
 
-Use route middleware for access restrictions where appropriate.
+Paginate high-volume datasets, select only needed columns, eager-load relationships, avoid N+1 queries, and add indexes justified by query patterns. Cache only when invalidation preserves correctness and security state is not made stale.
 
-Use policies for resource authorization.
+## Security and failure behavior
 
-Use mass-assignment protection.
+Use Laravel validation, escaping, hashing, rate limiting, configuration, and secret handling. Protect mass assignment. Never trust frontend state for authorization. Define monitoring failures deliberately so optional telemetry/enrichment does not unnecessarily break business traffic, while required atomic operations never report false success.
 
-Use appropriate database indexes for frequently queried security data.
+## Schema workflow
 
-Ensure migrations can be executed from a clean database.
+For schema changes:
 
-When modifying the schema:
+1. Add a forward migration.
+2. Update models, casts, and relationships.
+3. Update factories/seeders where relevant.
+4. Update query/index assumptions.
+5. Add or update behavior-focused tests.
+6. Verify migrations from a clean database and run relevant tests.
 
-1. create/update migration
-2. update model
-3. update relationships
-4. update factory/seeder where appropriate
-5. update tests
-6. verify migrations and tests
-
-Follow the Laravel version actually installed in the repository.
+Preserve working conventions and change incrementally.
