@@ -4,7 +4,7 @@
         @php($statusColor = ['new' => 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200', 'acknowledged' => 'border-blue-500/40 bg-blue-500/10 text-blue-200', 'investigating' => 'border-amber-500/40 bg-amber-500/10 text-amber-200', 'resolved' => 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200', 'dismissed' => 'border-zinc-700 text-zinc-400'][$alert->status] ?? 'border-zinc-700 text-zinc-300')
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Security Alerts</p>
+                <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">{{ config('intsec.sources.'.$alert->source, $alert->source) }} · Security Alert</p>
                 <h1 class="mt-2 text-3xl font-semibold text-white">{{ $alert->title }}</h1>
                 <p class="mt-1 font-mono text-sm text-cyan-300">{{ $alert->alert_id }}</p>
             </div>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -50,6 +51,11 @@ class SecurityEvent extends Model
         return $this->belongsTo(AuthenticationLog::class);
     }
 
+    public function scopeForSource(Builder $query, string $source): Builder
+    {
+        return $query->where('source', $source);
+    }
+
     public static function record(
         string $title,
         string $eventType,
@@ -63,7 +69,7 @@ class SecurityEvent extends Model
     ): self {
         return static::query()->create([
             'title' => $title,
-            'source' => $source,
+            'source' => $source ?? config('intsec.source', 'intsec'),
             'external_event_id' => $externalEventId,
             'event_type' => $eventType,
             'severity' => $severity,

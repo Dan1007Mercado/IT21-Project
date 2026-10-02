@@ -17,6 +17,7 @@ final class EventCorrelationService
 
         $windowStart = now()->subMinutes(IntsecSettings::getInt('correlation_window_minutes', 30));
         $related = SecurityAlert::query()
+            ->forSource($alert->source)
             ->where('source_ip', $alert->source_ip)
             ->where('occurred_at', '>=', $windowStart)
             ->whereNotIn('status', ['dismissed'])
@@ -36,6 +37,7 @@ final class EventCorrelationService
         }
 
         $existing = Incident::query()
+            ->forSource($alert->source)
             ->where('source_ip', $alert->source_ip)
             ->where('incident_type', 'correlated_activity')
             ->where('last_detected_at', '>=', $windowStart)
@@ -53,6 +55,7 @@ final class EventCorrelationService
         return DB::transaction(function () use ($alert, $related, $failedThenSuccess): Incident {
             $incident = Incident::query()->create([
                 'title' => $failedThenSuccess ? 'Failed authentication followed by success' : 'Correlated probing and authentication activity',
+                'source' => $alert->source,
                 'description' => 'Multiple explainable detections were correlated within the configured investigation window.',
                 'incident_type' => 'correlated_activity',
                 'severity' => $failedThenSuccess ? 'High' : 'High',

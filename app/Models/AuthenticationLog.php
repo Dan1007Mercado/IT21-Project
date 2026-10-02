@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\AuthenticationLogFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,7 @@ class AuthenticationLog extends Model
     use HasFactory;
 
     protected $fillable = [
+        'source',
         'user_id',
         'attempted_identity',
         'ip_address',
@@ -56,5 +58,10 @@ class AuthenticationLog extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function scopeForSource(Builder $query, string $source): Builder
+    {
+        return $query->where('source', $source);
     }
 }

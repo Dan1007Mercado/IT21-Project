@@ -38,6 +38,7 @@
                     <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>{{ ucfirst($status) }}</option>
                 @endforeach
             </select>
+            <select name="source" class="rounded-md px-3 py-2 text-sm"><option value="">All sources</option>@foreach(config('intsec.sources') as $value => $label)<option value="{{ $value }}" @selected(request('source') === $value)>{{ $label }}</option>@endforeach</select>
             <input type="text" name="source_ip" value="{{ request('source_ip') }}" placeholder="Source IP" class="rounded-md px-3 py-2 text-sm">
             <select name="alert_type" class="rounded-md px-3 py-2 text-sm">
                 <option value="">Detection type</option>
@@ -79,6 +80,7 @@
                         <tr style="background: #0b1220; border-bottom: 1px solid rgba(255,255,255,0.04);">
                             <th class="px-3.5 py-3"><input type="checkbox" onclick="document.querySelectorAll('.alert-select').forEach((input) => input.checked = this.checked)"></th>
                             <th class="px-3.5 py-3 text-xs text-zinc-400">Alert</th>
+                            <th class="px-3.5 py-3 text-xs text-zinc-400">Source</th>
                             <th class="px-3.5 py-3 text-xs text-zinc-400">Title</th>
                             <th class="px-3.5 py-3 text-xs text-zinc-400">Detection</th>
                             <th class="px-3.5 py-3 text-xs text-zinc-400">Severity</th>
@@ -97,6 +99,7 @@
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                                 <td class="px-3.5 py-3"><input form="bulk-alerts" class="alert-select" type="checkbox" name="alert_ids[]" value="{{ $alert->id }}"></td>
                                 <td class="px-3.5 py-3 font-mono">{{ $alert->alert_id }}</td>
+                                <td class="px-3.5 py-3 text-xs font-semibold uppercase text-cyan-300">{{ config('intsec.sources.'.$alert->source, $alert->source) }}</td>
                                 <td class="px-3.5 py-3"><a href="{{ route('alerts.show', $alert) }}" class="hover:underline">{{ $alert->title }}</a></td>
                                 <td class="px-3.5 py-3 text-xs text-zinc-300">{{ $alert->typeLabel() }}</td>
                                 <td class="px-3.5 py-3"><span class="rounded border px-2 py-1 text-xs {{ $severityColor }}">{{ $alert->severity }}</span></td>
@@ -108,7 +111,7 @@
                                 <td class="px-3.5 py-3"><a href="{{ route('alerts.show', $alert) }}" class="text-cyan-400">View</a></td>
                             </tr>
                         @empty
-                            <tr><td colspan="11" class="px-4 py-14 text-center text-zinc-400">No alerts match the current filters.</td></tr>
+                            <tr><td colspan="12" class="px-4 py-14 text-center text-zinc-400">No alerts match the current filters.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\MonitoringSource;
 use App\Models\AuthenticationLog;
 use App\Models\BlockedIp;
 use App\Models\Incident;
@@ -38,6 +39,7 @@ class DashboardController extends Controller
         ];
 
         $topActiveIps = RequestActivity::query()
+            ->forSource(MonitoringSource::Intsec->value)
             ->whereNotNull('ip_address')
             ->where('occurred_at', '>=', now()->subDays(7))
             ->selectRaw('ip_address, COUNT(*) as request_count, MAX(occurred_at) as last_seen')
@@ -54,7 +56,8 @@ class DashboardController extends Controller
             'statusBreakdown' => $statusBreakdown,
             'recentActivity' => (clone $authenticationQuery)->latest('occurred_at')->limit(5)->get(),
             'authenticationTrend' => $this->authenticationTrend($user->id, $days),
-            'requestTrend' => $this->requestQueries->dailyTrend($days),
+            'requestTrend' => $this->requestQueries->dailyTrend($days, MonitoringSource::Intsec->value),
+            'sourceRequestCounts' => RequestActivity::query()->selectRaw('source, COUNT(*) as total')->groupBy('source')->pluck('total', 'source'),
             'totalSecurityEvents' => $isAdministrator ? SecurityEvent::query()->count() : 0,
             'openSecurityAlertCount' => $isAdministrator ? SecurityAlert::query()->whereIn('status', ['new', 'acknowledged', 'investigating'])->count() : 0,
             'openIncidentCount' => $isAdministrator ? Incident::query()->whereIn('status', ['open', 'investigating', 'contained'])->count() : 0,
@@ -78,9 +81,11 @@ class DashboardController extends Controller
 
     public function ipLocations(Request $request): View
     {
+        $source = $this->monitoringSource($request);
         $query = RequestActivity::query()
             ->leftJoin('ip_intelligences', 'ip_intelligences.ip_address', '=', 'request_activities.ip_address')
             ->whereNotNull('request_activities.ip_address')
+            ->where('request_activities.source', $source->value)
             ->selectRaw('request_activities.ip_address, MAX(request_activities.ip_type) as ip_type, COUNT(*) as event_count, MAX(request_activities.occurred_at) as last_seen, ip_intelligences.country, ip_intelligences.country_code, ip_intelligences.region, ip_intelligences.city, ip_intelligences.latitude, ip_intelligences.longitude, ip_intelligences.isp, ip_intelligences.organization, ip_intelligences.asn, ip_intelligences.timezone, ip_intelligences.last_enriched_at')
             ->groupBy(
                 'request_activities.ip_address', 'ip_intelligences.country', 'ip_intelligences.country_code',
@@ -130,20 +135,22 @@ class DashboardController extends Controller
 
         return view('ip-locations.index', [
             'ipLocations' => $paginator,
-            'countryCount' => IpIntelligence::query()->whereNotNull('country_code')->distinct('country_code')->count('country_code'),
-            'cityCount' => IpIntelligence::query()->whereNotNull('city')->distinct('city')->count('city'),
+            'countryCount' => RequestActivity::query()->forSource($source->value)->join('ip_intelligences', 'ip_intelligences.ip_address', '=', 'request_activities.ip_address')->whereNotNull('ip_intelligences.country_code')->distinct()->count('ip_intelligences.country_code'),
+            'cityCount' => RequestActivity::query()->forSource($source->value)->join('ip_intelligences', 'ip_intelligences.ip_address', '=', 'request_activities.ip_address')->whereNotNull('ip_intelligences.city')->distinct()->count('ip_intelligences.city'),
             'mapLocations' => $mapLocations,
             'countries' => IpIntelligence::query()->whereNotNull('country_code')->orderBy('country')->pluck('country', 'country_code'),
+            'monitoringSource' => $source,
         ]);
     }
 
     public function ddosMonitoring(Request $request): View
     {
-        $hourlyTrend = collect($this->requestQueries->hourlyTrend(24));
+        $source = $this->monitoringSource($request);
+        $hourlyTrend = collect($this->requestQueries->hourlyTrend(24, $source->value));
         $windowStart = now()->subDay();
         $threshold = IntsecSettings::getInt('request_spike_threshold', 250);
 
-        $statusDistribution = RequestActivity::query()->where('occurred_at', '>=', $windowStart)
+        $statusDistribution = RequestActivity::query()->forSource($source->value)->where('occurred_at', '>=', $windowStart)
             ->selectRaw("CASE WHEN status_code >= 500 THEN '5xx' WHEN status_code >= 400 THEN '4xx' WHEN status_code >= 300 THEN '3xx' WHEN status_code >= 200 THEN '2xx' ELSE '1xx' END as family, COUNT(*) as total")
             ->groupBy('family')->pluck('total', 'family');
 
@@ -154,20 +161,22 @@ class DashboardController extends Controller
             'suspiciousSpikes' => $hourlyTrend->where('count', '>=', $threshold)->count(),
             'spikeThreshold' => $threshold,
             'statusDistribution' => $statusDistribution,
-            'topIps' => RequestActivity::query()->where('occurred_at', '>=', $windowStart)->whereNotNull('ip_address')
+            'topIps' => RequestActivity::query()->forSource($source->value)->where('occurred_at', '>=', $windowStart)->whereNotNull('ip_address')
                 ->selectRaw('ip_address, COUNT(*) as total')->groupBy('ip_address')->orderByDesc('total')->limit(8)->get(),
-            'topRoutes' => RequestActivity::query()->where('occurred_at', '>=', $windowStart)
+            'topRoutes' => RequestActivity::query()->forSource($source->value)->where('occurred_at', '>=', $windowStart)
                 ->selectRaw('path, COUNT(*) as total')->groupBy('path')->orderByDesc('total')->limit(8)->get(),
-            'clientErrorCount' => RequestActivity::query()->where('occurred_at', '>=', $windowStart)->whereBetween('status_code', [400, 499])->count(),
-            'serverErrorCount' => RequestActivity::query()->where('occurred_at', '>=', $windowStart)->whereBetween('status_code', [500, 599])->count(),
+            'clientErrorCount' => RequestActivity::query()->forSource($source->value)->where('occurred_at', '>=', $windowStart)->whereBetween('status_code', [400, 499])->count(),
+            'serverErrorCount' => RequestActivity::query()->forSource($source->value)->where('occurred_at', '>=', $windowStart)->whereBetween('status_code', [500, 599])->count(),
+            'monitoringSource' => $source,
         ]);
     }
 
     public function attackFrequency(Request $request): View
     {
+        $source = $this->monitoringSource($request);
         $filters = $request->only(['range', 'ip', 'classification', 'status_family']);
         $start = $this->requestQueries->startForRange($filters['range'] ?? '7d');
-        $query = $this->requestQueries->applyFrequencyFilters(RequestActivity::query(), $filters)
+        $query = $this->requestQueries->applyFrequencyFilters(RequestActivity::query(), $filters, $source->value)
             ->whereNotNull('ip_address')
             ->selectRaw('ip_address, MAX(ip_type) as ip_type, MAX(classification) as classification, COUNT(*) as request_count, MAX(occurred_at) as last_seen, SUM(CASE WHEN status_code BETWEEN 400 AND 499 THEN 1 ELSE 0 END) as client_errors, SUM(CASE WHEN status_code = 403 THEN 1 ELSE 0 END) as forbidden_count, SUM(CASE WHEN status_code = 404 THEN 1 ELSE 0 END) as not_found_count')
             ->groupBy('ip_address');
@@ -178,7 +187,7 @@ class DashboardController extends Controller
 
         $paginator = $query->orderByDesc('request_count')->paginate(15)->appends($request->query());
         $ips = $paginator->getCollection()->pluck('ip_address')->filter()->values();
-        $paths = $this->requestQueries->mostRequestedPaths($ips, $start);
+        $paths = $this->requestQueries->mostRequestedPaths($ips, $start, $source->value);
         $blocked = $this->requestQueries->blockedStates($ips);
 
         $paginator->setCollection($paginator->getCollection()->map(fn ($entry): array => [
@@ -194,12 +203,13 @@ class DashboardController extends Controller
             'is_blocked' => (bool) ($blocked[$entry->ip_address] ?? false),
         ]));
 
-        return view('attack-frequency.index', ['attackFrequency' => $paginator, 'filters' => $filters]);
+        return view('attack-frequency.index', ['attackFrequency' => $paginator, 'filters' => $filters, 'monitoringSource' => $source]);
     }
 
     public function loginActivity(Request $request): View
     {
-        $query = AuthenticationLog::query()->with('user');
+        $source = $this->monitoringSource($request);
+        $query = AuthenticationLog::query()->forSource($source->value)->with('user');
         if (! $request->user()->isAdministrator()) {
             $query->where(function (Builder $nested) use ($request): void {
                 $nested->where('user_id', $request->user()->id)
@@ -230,7 +240,15 @@ class DashboardController extends Controller
             'users' => $request->user()->isAdministrator()
                 ? User::query()->orderBy('name')->get(['id', 'name', 'email'])
                 : collect(),
+            'monitoringSource' => $source,
         ]);
+    }
+
+    private function monitoringSource(Request $request): MonitoringSource
+    {
+        $value = (string) ($request->route('source') ?? MonitoringSource::Intsec->value);
+
+        return MonitoringSource::tryFrom($value) ?? abort(404);
     }
 
     /** @return array<int, array{label: string, count: int}> */

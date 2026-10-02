@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\IncidentRemark;
+use App\Models\SecurityEvent;
 use App\Models\User;
 use App\Services\Security\IpManagementService;
 use App\Services\Security\IpNetwork;
@@ -163,8 +164,12 @@ class IncidentController extends Controller
 
         $incident = DB::transaction(function () use ($validated, $request) {
             $assignedTo = $validated['assigned_to'] ?? $request->user()?->id;
+            $source = isset($validated['security_event_id'])
+                ? SecurityEvent::query()->whereKey($validated['security_event_id'])->value('source')
+                : config('intsec.source', 'intsec');
 
             $incident = Incident::query()->create([
+                'source' => $source ?? config('intsec.source', 'intsec'),
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'incident_type' => $validated['incident_type'],
@@ -432,6 +437,7 @@ class IncidentController extends Controller
         }
 
         $filters = [
+            'source' => 'source',
             'incident_id' => 'incident_id',
             'source_ip' => 'source_ip',
             'user_id' => 'user_id',

@@ -41,4 +41,9 @@ class RequestActivity extends Model
     {
         return $query->where('occurred_at', '>=', $time);
     }
+
+    public function scopeForSource(Builder $query, string $source): Builder
+    {
+        return $query->where('source', $source);
+    }
 }

@@ -2,7 +2,7 @@
     <div class="space-y-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Incident overview</p>
+                <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">{{ config('intsec.sources.'.$incident->source, $incident->source) }} · Incident overview</p>
                 <h1 class="mt-2 text-3xl font-semibold text-white">{{ $incident->title }}</h1>
                 <p class="mt-2 font-mono text-sm text-cyan-300">{{ $incident->incident_id }}</p>
             </div>

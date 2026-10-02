@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -39,6 +40,7 @@ class SecurityAlert extends Model
 
     protected $fillable = [
         'alert_id',
+        'source',
         'title',
         'alert_type',
         'rule_key',
@@ -93,6 +95,11 @@ class SecurityAlert extends Model
     public function remarks(): HasMany
     {
         return $this->hasMany(SecurityAlertRemark::class)->latest();
+    }
+
+    public function scopeForSource(Builder $query, string $source): Builder
+    {
+        return $query->where('source', $source);
     }
 
     public function typeLabel(): string

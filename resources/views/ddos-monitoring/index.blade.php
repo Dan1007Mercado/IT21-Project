@@ -1,5 +1,5 @@
 <x-layouts.app title="Application Request Spikes - INTSEC" wide>
-    <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">Application-layer monitoring</p><h1 class="mt-2 text-3xl font-semibold text-white">Application request spikes</h1><p class="mt-2 max-w-3xl text-sm text-zinc-400">Request-volume monitoring from HTTP telemetry after TLS termination. This is not network-layer DDoS detection.</p></header>
+    <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">{{ $monitoringSource->label() }} monitoring</p><h1 class="mt-2 text-3xl font-semibold text-white">Application request spikes</h1><p class="mt-2 max-w-3xl text-sm text-zinc-400">Request-volume monitoring from {{ $monitoringSource->label() }} HTTP telemetry after TLS termination. This is not network-layer DDoS detection.</p></header>
     <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <x-security.metric-card label="Current hour" :value="number_format($currentRequests)" />
         <x-security.metric-card label="24-hour peak" :value="number_format($peakRequests)" tone="amber" />

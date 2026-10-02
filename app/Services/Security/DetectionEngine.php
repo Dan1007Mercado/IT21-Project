@@ -11,11 +11,16 @@ final class DetectionEngine
     public function __construct(private EventCorrelationService $correlation) {}
 
     /**
-     * @param  array{rule_key:string,rule_name:string,alert_type:string,title:string,description:string,severity:string,source_ip?:?string,grouping_key:string,threshold?:int,window_seconds?:int,observed_count?:int,confidence?:float,risk_score?:int,affected_identity?:?string,route?:?string,request_activity_id?:?int,authentication_log_id?:?int,security_event_id?:?int,user_id?:?int,metadata?:array<string,mixed>}  $detection
+     * @param  array{rule_key:string,rule_name:string,alert_type:string,title:string,description:string,severity:string,source?:string,source_ip?:?string,grouping_key:string,threshold?:int,window_seconds?:int,observed_count?:int,confidence?:float,risk_score?:int,affected_identity?:?string,route?:?string,request_activity_id?:?int,authentication_log_id?:?int,security_event_id?:?int,user_id?:?int,metadata?:array<string,mixed>}  $detection
      */
     public function record(array $detection): SecurityAlert
     {
-        $deduplicationKey = hash('sha256', $detection['rule_key'].'|'.$detection['grouping_key']);
+        $source = $detection['source'] ?? config('intsec.source', 'intsec');
+        if (isset($detection['security_event_id'])) {
+            $source = SecurityEvent::query()->whereKey($detection['security_event_id'])->value('source') ?? $source;
+        }
+        $detection['source'] = $source;
+        $deduplicationKey = hash('sha256', $source.'|'.$detection['rule_key'].'|'.$detection['grouping_key']);
         $cooldownStart = now()->subMinutes(IntsecSettings::getInt('alert_cooldown_minutes', 15));
 
         $existing = SecurityAlert::query()
@@ -43,7 +48,7 @@ final class DetectionEngine
                 ? SecurityEvent::query()->findOrFail($detection['security_event_id'])
                 : SecurityEvent::query()->create([
                     'title' => $detection['title'],
-                    'source' => 'local',
+                    'source' => $detection['source'],
                     'event_type' => $detection['alert_type'],
                     'rule_key' => $detection['rule_key'],
                     'severity' => $detection['severity'],
@@ -61,6 +66,7 @@ final class DetectionEngine
 
             return SecurityAlert::query()->create([
                 'alert_id' => SecurityAlert::generateAlertId(),
+                'source' => $detection['source'],
                 'title' => $detection['title'],
                 'alert_type' => $detection['alert_type'],
                 'rule_key' => $detection['rule_key'],

@@ -54,7 +54,7 @@ class CaptureRequestActivity
 
             $activity = RequestActivity::query()->create([
                 'request_id' => $requestId,
-                'source' => 'local',
+                'source' => config('intsec.source', 'intsec'),
                 'user_id' => $request->user()?->id,
                 'ip_address' => $resolved['ip'],
                 'ip_type' => $resolved['type'],

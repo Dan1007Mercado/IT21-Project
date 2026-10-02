@@ -22,11 +22,12 @@ final class RequestActivityQueryService
     }
 
     /** @return array<int, array{label: string, count: int}> */
-    public function hourlyTrend(int $hours = 24): array
+    public function hourlyTrend(int $hours = 24, ?string $source = null): array
     {
         $start = now()->subHours($hours - 1)->startOfHour();
         $expression = $this->bucketExpression('hour');
         $counts = RequestActivity::query()
+            ->forSource($source ?? config('intsec.source', 'intsec'))
             ->where('occurred_at', '>=', $start)
             ->selectRaw("{$expression} as bucket, COUNT(*) as total")
             ->groupBy('bucket')
@@ -41,11 +42,12 @@ final class RequestActivityQueryService
     }
 
     /** @return array<int, array{label: string, count: int}> */
-    public function dailyTrend(int $days = 7): array
+    public function dailyTrend(int $days = 7, ?string $source = null): array
     {
         $start = now()->subDays($days - 1)->startOfDay();
         $expression = $this->bucketExpression('day');
         $counts = RequestActivity::query()
+            ->forSource($source ?? config('intsec.source', 'intsec'))
             ->where('occurred_at', '>=', $start)
             ->selectRaw("{$expression} as bucket, COUNT(*) as total")
             ->groupBy('bucket')
@@ -58,8 +60,9 @@ final class RequestActivityQueryService
         })->values()->all();
     }
 
-    public function applyFrequencyFilters(Builder $query, array $filters): Builder
+    public function applyFrequencyFilters(Builder $query, array $filters, ?string $source = null): Builder
     {
+        $query->forSource($source ?? config('intsec.source', 'intsec'));
         $query->where('occurred_at', '>=', $this->startForRange($filters['range'] ?? '7d'));
 
         if (filled($filters['ip'] ?? null)) {
@@ -79,13 +82,14 @@ final class RequestActivityQueryService
     }
 
     /** @return Collection<string, string> */
-    public function mostRequestedPaths(Collection $ips, \DateTimeInterface $start): Collection
+    public function mostRequestedPaths(Collection $ips, \DateTimeInterface $start, ?string $source = null): Collection
     {
         if ($ips->isEmpty()) {
             return collect();
         }
 
         return RequestActivity::query()
+            ->forSource($source ?? config('intsec.source', 'intsec'))
             ->whereIn('ip_address', $ips)
             ->where('occurred_at', '>=', $start)
             ->selectRaw('ip_address, path, COUNT(*) as total')

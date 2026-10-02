@@ -19,6 +19,7 @@ class AuthenticationLogFactory extends Factory
     public function definition(): array
     {
         return [
+            'source' => 'intsec',
             'user_id' => User::factory(),
             'attempted_identity' => fake()->safeEmail(),
             'ip_address' => fake()->ipv4(),

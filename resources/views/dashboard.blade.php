@@ -5,9 +5,11 @@
     </header>
 
     @if ($isAdministrator)
-        <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Security metrics">
-            <x-security.metric-card label="Security events" :value="number_format($totalSecurityEvents)" />
-            <x-security.metric-card label="Active alerts" :value="number_format($openSecurityAlertCount)" tone="amber" />
+        <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Security metrics">
+            <x-security.metric-card label="INTSEC requests" :value="number_format($sourceRequestCounts['intsec'] ?? 0)" />
+            <x-security.metric-card label="Hotel requests" :value="number_format($sourceRequestCounts['hotel-booking'] ?? 0)" />
+            <x-security.metric-card label="Global security events" :value="number_format($totalSecurityEvents)" />
+            <x-security.metric-card label="Global active alerts" :value="number_format($openSecurityAlertCount)" tone="amber" />
             <x-security.metric-card label="Open incidents" :value="number_format($openIncidentCount)" tone="red" />
             <x-security.metric-card label="Blocked IP policies" :value="number_format($blockedIpCount)" tone="emerald" />
         </section>
@@ -20,7 +22,7 @@
     @endif
 
     <section class="mt-6 grid gap-4 xl:grid-cols-2">
-        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div><h2 class="font-semibold text-white">Request activity trend</h2><p class="text-sm text-zinc-500">Actual application requests from RequestActivity</p></div><div class="mt-5 h-64"><canvas id="requestTrend"></canvas></div></div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div><h2 class="font-semibold text-white">INTSEC Request activity trend</h2><p class="text-sm text-zinc-500">Internal INTSEC requests from RequestActivity</p></div><div class="mt-5 h-64"><canvas id="requestTrend"></canvas></div></div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div><h2 class="font-semibold text-white">Authentication activity trend</h2><p class="text-sm text-zinc-500">Authentication telemetry only</p></div><div class="mt-5 h-64"><canvas id="authTrend"></canvas></div></div>
     </section>
 

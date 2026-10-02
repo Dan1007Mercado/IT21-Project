@@ -132,7 +132,7 @@ class DatabaseSeeder extends Seeder
             RequestActivity::query()->updateOrCreate([
                 'request_id' => 'demo-location-'.($index + 1),
             ], [
-                'source' => 'demo',
+                'source' => 'intsec',
                 'user_id' => $admin->id,
                 'ip_address' => $location['ip_address'],
                 'ip_type' => 'public',

@@ -179,6 +179,7 @@
                 <option value="authorization" {{ request('incident_type') === 'authorization' ? 'selected' : '' }}>Authorization</option>
                 <option value="ip_activity" {{ request('incident_type') === 'ip_activity' ? 'selected' : '' }}>IP activity</option>
             </select>
+            <select name="source" class="rounded-md px-3 py-2 text-sm" style="background: var(--panel); border: 1px solid var(--border); color: var(--text);"><option value="">All sources</option>@foreach(config('intsec.sources') as $value => $label)<option value="{{ $value }}" @selected(request('source') === $value)>{{ $label }}</option>@endforeach</select>
             <select name="severity" class="rounded-md px-3 py-2 text-sm"
                 style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
                 <option value="">Severity</option>
@@ -250,6 +251,7 @@
                     <thead>
                         <tr style="background: var(--panel); border-bottom: 1px solid var(--border);">
                             <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Incident</th>
+                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Source</th>
                             <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Title</th>
                             <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Type</th>
                             <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Severity</th>
@@ -279,6 +281,7 @@
                                 <td class="font-mono-plex px-3.5 py-3" style="border-left: 3px solid {{ $sevVar }}; color: var(--text);">
                                     {{ $incident->incident_id }}
                                 </td>
+                                <td class="px-3.5 py-3 text-xs font-semibold uppercase" style="color: var(--accent);">{{ config('intsec.sources.'.$incident->source, $incident->source) }}</td>
                                 <td class="px-3.5 py-3">
                                     <a href="{{ route('incidents.show', $incident) }}" class="font-medium hover:underline" style="color: var(--text);">
                                         {{ $incident->title }}
@@ -306,7 +309,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="px-4 py-14 text-center" style="color: var(--text-muted);">
+                                <td colspan="12" class="px-4 py-14 text-center" style="color: var(--text-muted);">
                                     No incidents match the current filter set.
                                 </td>
                             </tr>

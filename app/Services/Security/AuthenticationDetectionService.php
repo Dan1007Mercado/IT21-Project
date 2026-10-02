@@ -24,10 +24,11 @@ final class AuthenticationDetectionService
     /** @return array<int, SecurityAlert> */
     private function evaluateFailure(AuthenticationLog $log): array
     {
+        $source = $log->source ?? config('intsec.source', 'intsec');
         $windowMinutes = IntsecSettings::getInt('login_attempt_window_minutes', 5);
         $since = $log->occurred_at->copy()->subMinutes($windowMinutes);
         $identity = $this->identity($log);
-        $failures = AuthenticationLog::query()->where('action', 'login')->where('status', 'failed')
+        $failures = AuthenticationLog::query()->forSource($source)->where('action', 'login')->where('status', 'failed')
             ->whereBetween('occurred_at', [$since, $log->occurred_at]);
         $alerts = [];
 
@@ -64,11 +65,12 @@ final class AuthenticationDetectionService
     /** @return array<int, SecurityAlert> */
     private function evaluateSuccess(AuthenticationLog $log): array
     {
+        $source = $log->source ?? config('intsec.source', 'intsec');
         $alerts = [];
         $windowMinutes = IntsecSettings::getInt('login_attempt_window_minutes', 5);
         $since = $log->occurred_at->copy()->subMinutes($windowMinutes);
         $identity = $this->identity($log);
-        $recentFailures = AuthenticationLog::query()->where('action', 'login')->where('status', 'failed')
+        $recentFailures = AuthenticationLog::query()->forSource($source)->where('action', 'login')->where('status', 'failed')
             ->whereBetween('occurred_at', [$since, $log->occurred_at])
             ->where(function ($query) use ($log, $identity): void {
                 $query->where('ip_address', $log->ip_address);
@@ -82,7 +84,7 @@ final class AuthenticationDetectionService
         }
 
         if ($log->user_id !== null) {
-            $knownSuccess = AuthenticationLog::query()->where('action', 'login')->where('status', 'successful')
+            $knownSuccess = AuthenticationLog::query()->forSource($source)->where('action', 'login')->where('status', 'successful')
                 ->where('user_id', $log->user_id)->where('id', '<', $log->id)->where('occurred_at', '>=', $log->occurred_at->copy()->subDays(30));
             $hasHistory = (clone $knownSuccess)->exists();
             $knownContext = (clone $knownSuccess)->where(function ($query) use ($log): void {
@@ -116,6 +118,7 @@ final class AuthenticationDetectionService
             'threshold' => $threshold, 'window_seconds' => $windowMinutes * 60, 'observed_count' => $count,
             'affected_identity' => $metadata['affected_identity'] ?? null,
             'authentication_log_id' => $log->id, 'user_id' => $log->user_id, 'metadata' => $metadata,
+            'source' => $log->source ?? config('intsec.source', 'intsec'),
         ]);
     }
 }

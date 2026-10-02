@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IpManagementController;
+use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SecurityAlertController;
 use App\Http\Middleware\EnsureIpNotBlocked;
@@ -46,6 +47,16 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
     Route::middleware('admin')->group(function (): void {
+        Route::prefix('monitoring/{source}')->whereIn('source', ['intsec', 'hotel-booking'])->name('monitoring.')->group(function (): void {
+            Route::get('/', [MonitoringController::class, 'overview'])->name('overview');
+            Route::get('/login-activity', [DashboardController::class, 'loginActivity'])->name('login-activity');
+            Route::get('/ip-monitoring', [DashboardController::class, 'ipLocations'])->name('ip-locations');
+            Route::get('/request-activity', [MonitoringController::class, 'requestActivities'])->name('request-activities');
+            Route::get('/attack-frequency', [DashboardController::class, 'attackFrequency'])->name('attack-frequency');
+            Route::get('/ddos-monitoring', [DashboardController::class, 'ddosMonitoring'])->name('ddos-monitoring');
+            Route::get('/security-events', [MonitoringController::class, 'securityEvents'])->name('security-events');
+        });
+
         Route::get('/admin', function () {
             return view('admin.index');
         })->name('admin.index');

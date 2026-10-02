@@ -3,6 +3,7 @@
 namespace App\Services\Security;
 
 use App\Models\AuditLog;
+use App\Models\AuthenticationLog;
 use App\Models\Incident;
 use App\Models\SecurityAlert;
 use App\Models\SecurityEvent;
@@ -13,6 +14,9 @@ class ExternalSecurityEventService
     public function __construct(
         protected IpActivityIncidentService $ipActivityIncidents,
         protected DetectionEngine $detectionEngine,
+        protected UserAgentClassifier $userAgentClassifier,
+        protected IpEnrichmentService $ipEnrichment,
+        protected TelemetryMetadataSanitizer $metadataSanitizer,
     ) {}
 
     /** @return array{event: SecurityEvent, alert: ?SecurityAlert, incident: ?Incident, duplicate: bool} */
@@ -35,6 +39,9 @@ class ExternalSecurityEventService
             $activityCount = SecurityEvent::query()->where('source', $source)->where('source_ip', $ip)
                 ->where('occurred_at', '>=', $windowStart)->count() + 1;
             $contextuallySuspicious = $this->isSuspiciousLoginContext($source, $ip, $eventType, $payload['user_agent'] ?? null);
+            $metadata = $this->metadataSanitizer->sanitize($payload['metadata'] ?? []);
+
+            $authenticationLog = $this->authenticationLog($payload, $metadata);
 
             $severity = $this->classify($eventType, $failedCount, $activityCount, $contextuallySuspicious);
             $event = SecurityEvent::query()->create([
@@ -44,8 +51,9 @@ class ExternalSecurityEventService
                 'event_type' => $eventType,
                 'severity' => $severity,
                 'description' => $payload['message'],
+                'authentication_log_id' => $authenticationLog?->id,
                 'source_ip' => $ip,
-                'metadata' => array_merge($payload['metadata'] ?? [], [
+                'metadata' => array_merge($metadata, [
                     'route' => $payload['route'], 'method' => strtoupper($payload['method']),
                     'user_agent' => $payload['user_agent'] ?? null,
                     'reported_at' => $payload['occurred_at'] ?? now()->toIso8601String(),
@@ -71,6 +79,7 @@ class ExternalSecurityEventService
                     'window_seconds' => IntsecSettings::getInt('login_attempt_window_minutes', 5) * 60,
                     'observed_count' => $failedCount,
                     'security_event_id' => $event->id,
+                    'source' => $source,
                     'metadata' => ['source' => $source],
                 ]);
             } elseif ($eventType === 'monitored_login_attempt') {
@@ -87,6 +96,7 @@ class ExternalSecurityEventService
                     'window_seconds' => 1,
                     'observed_count' => 1,
                     'security_event_id' => $event->id,
+                    'source' => $source,
                     'metadata' => ['source' => $source, 'controlled_endpoint' => true],
                 ]);
             }
@@ -99,8 +109,48 @@ class ExternalSecurityEventService
                 ['source' => $source, 'event_type' => $eventType, 'severity' => $severity],
                 'Authenticated external security event received and classified.', $ip);
 
+            $this->ipEnrichment->observe($ip);
+
             return ['event' => $event, 'alert' => $alert, 'incident' => $incident, 'duplicate' => false];
         });
+    }
+
+    /** @param array<string, mixed> $metadata */
+    private function authenticationLog(array $payload, array $metadata): ?AuthenticationLog
+    {
+        $mapping = [
+            'login_failed' => ['login', 'failed'],
+            'login_success' => ['login', 'successful'],
+            'logout' => ['logout', 'successful'],
+        ];
+
+        if (! isset($mapping[$payload['event_type']])) {
+            return null;
+        }
+
+        [$action, $status] = $mapping[$payload['event_type']];
+        $agent = $this->userAgentClassifier->analyze($payload['user_agent'] ?? null);
+
+        return AuthenticationLog::query()->create([
+            'source' => $payload['source'],
+            'user_id' => null,
+            'attempted_identity' => filled($metadata['identity'] ?? null) ? mb_strtolower(trim((string) $metadata['identity'])) : null,
+            'ip_address' => $payload['ip'],
+            'user_agent' => $agent['user_agent'],
+            'device_type' => $agent['device_type'],
+            'device_manufacturer' => $agent['device_manufacturer'],
+            'device_model' => $agent['device_model'],
+            'os_name' => $agent['os_name'],
+            'os_version' => $agent['os_version'],
+            'browser_name' => $agent['browser_name'],
+            'browser_version' => $agent['browser_version'],
+            'action' => $action,
+            'status' => $status,
+            'failure_reason' => $status === 'failed' ? 'credentials_rejected_by_source' : null,
+            'route' => $payload['route'],
+            'method' => strtoupper($payload['method']),
+            'occurred_at' => $payload['occurred_at'] ?? now(),
+        ]);
     }
 
     private function classify(string $eventType, int $failedCount, int $activityCount, bool $contextuallySuspicious): string

@@ -19,7 +19,8 @@ class IpActivityIncidentService
             return null;
         }
 
-        $existing = $this->findActiveIncident($ipAddress);
+        $source = $securityEvent?->source ?? config('intsec.source', 'intsec');
+        $existing = $this->findActiveIncident($ipAddress, $source);
 
         if ($existing) {
             $previousCount = $existing->event_count ?? 0;
@@ -54,7 +55,7 @@ class IpActivityIncidentService
             return $existing;
         }
 
-        return DB::transaction(function () use ($ipAddress, $activityCount, $threshold, $actor, $actorIp, $securityEvent): Incident {
+        return DB::transaction(function () use ($ipAddress, $activityCount, $threshold, $actor, $actorIp, $securityEvent, $source): Incident {
             $title = "Request spike detected from {$ipAddress}";
             $severity = $this->severityFor($activityCount, $threshold);
 
@@ -66,10 +67,12 @@ class IpActivityIncidentService
                 $ipAddress,
                 ['count' => $activityCount, 'threshold' => $threshold],
                 "Detected {$activityCount} requests from {$ipAddress}; configured threshold is {$threshold}.",
+                $source,
             );
 
             $alert = SecurityAlert::query()->create([
                 'alert_id' => SecurityAlert::generateAlertId(),
+                'source' => $source,
                 'title' => $title,
                 'alert_type' => SecurityAlert::TYPE_REPEATED_IP_ACTIVITY,
                 'severity' => $severity,
@@ -86,6 +89,7 @@ class IpActivityIncidentService
             ]);
 
             $incident = Incident::query()->create([
+                'source' => $source,
                 'title' => $title,
                 'description' => "Activity exceeded the configured threshold. Source {$ipAddress} generated {$activityCount} requests; threshold is {$threshold}.",
                 'incident_type' => 'ip_activity',
@@ -129,9 +133,10 @@ class IpActivityIncidentService
         });
     }
 
-    protected function findActiveIncident(string $ipAddress): ?Incident
+    protected function findActiveIncident(string $ipAddress, string $source): ?Incident
     {
         return Incident::query()
+            ->forSource($source)
             ->where('source_ip', $ipAddress)
             ->where('incident_type', 'ip_activity')
             ->where('detection_rule', 'repeated_ip_activity_threshold')

@@ -29,6 +29,7 @@ class AuthActivityLogger
         $userAgentAnalysis = $this->userAgentClassifier->analyze($request->userAgent());
 
         $payload = [
+            'source' => config('intsec.source', 'intsec'),
             'user_id' => $user?->id,
             'attempted_identity' => $attemptedIdentity,
             'ip_address' => $ipAddress,

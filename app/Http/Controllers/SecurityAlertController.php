@@ -59,9 +59,9 @@ class SecurityAlertController extends Controller
             'ipDecision' => $ipDecision,
             'ipRules' => $ipRules,
             'admins' => User::query()->where('role', 'administrator')->orderBy('name')->get(),
-            'openIncidents' => Incident::query()->whereIn('status', ['open', 'investigating', 'contained'])->orderByDesc('last_detected_at')->get(),
+            'openIncidents' => Incident::query()->forSource($alert->source)->whereIn('status', ['open', 'investigating', 'contained'])->orderByDesc('last_detected_at')->get(),
             'relatedAlerts' => $alert->source_ip
-                ? SecurityAlert::query()->where('source_ip', $alert->source_ip)->whereKeyNot($alert->id)
+                ? SecurityAlert::query()->forSource($alert->source)->where('source_ip', $alert->source_ip)->whereKeyNot($alert->id)
                     ->where('occurred_at', '>=', now()->subDay())->latest('occurred_at')->limit(10)->get()
                 : collect(),
         ]);
@@ -82,8 +82,12 @@ class SecurityAlertController extends Controller
         ]);
 
         $alert = DB::transaction(function () use ($validated, $request) {
+            $source = isset($validated['security_event_id'])
+                ? SecurityEvent::query()->whereKey($validated['security_event_id'])->value('source')
+                : config('intsec.source', 'intsec');
             $a = SecurityAlert::query()->create([
                 'alert_id' => SecurityAlert::generateAlertId(),
+                'source' => $source ?? config('intsec.source', 'intsec'),
                 'title' => $validated['title'],
                 'alert_type' => $validated['alert_type'] ?? null,
                 'severity' => $validated['severity'],
@@ -285,6 +289,7 @@ class SecurityAlertController extends Controller
 
         $incident = DB::transaction(function () use ($alert, $request) {
             $inc = Incident::query()->create([
+                'source' => $alert->source,
                 'title' => $alert->title,
                 'description' => $alert->description ?? 'Created from alert '.$alert->alert_id,
                 'incident_type' => $alert->alert_type ?? 'security_alert',
@@ -400,7 +405,7 @@ class SecurityAlertController extends Controller
             });
         }
 
-        foreach (['severity', 'status', 'alert_type', 'assigned_to'] as $field) {
+        foreach (['source', 'severity', 'status', 'alert_type', 'assigned_to'] as $field) {
             if ($request->filled($field)) {
                 $query->where($field, $request->input($field));
             }

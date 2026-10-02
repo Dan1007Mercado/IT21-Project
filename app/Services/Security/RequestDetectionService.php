@@ -20,7 +20,7 @@ final class RequestDetectionService
         $alerts = [];
         $windowSeconds = IntsecSettings::getInt('request_window_seconds', 60);
         $windowStart = $activity->occurred_at->copy()->subSeconds($windowSeconds);
-        $ipQuery = RequestActivity::query()->where('ip_address', $activity->ip_address)
+        $ipQuery = RequestActivity::query()->forSource($activity->source)->where('ip_address', $activity->ip_address)
             ->whereBetween('occurred_at', [$windowStart, $activity->occurred_at]);
         $path = strtolower($activity->path);
 
@@ -73,7 +73,7 @@ final class RequestDetectionService
         }
 
         $spikeThreshold = IntsecSettings::getInt('request_spike_threshold', 250);
-        $globalCount = RequestActivity::query()->whereBetween('occurred_at', [$windowStart, $activity->occurred_at])->count();
+        $globalCount = RequestActivity::query()->forSource($activity->source)->whereBetween('occurred_at', [$windowStart, $activity->occurred_at])->count();
         if ($globalCount >= $spikeThreshold) {
             $alerts[] = $this->record($activity, 'request.volume_spike', 'Application request volume spike', SecurityAlert::TYPE_REQUEST_SPIKE, 'Suspicious', $globalCount, $spikeThreshold, $windowSeconds, ['scope' => 'application']);
         }
@@ -95,6 +95,7 @@ final class RequestDetectionService
             'threshold' => $threshold, 'window_seconds' => $windowSeconds, 'observed_count' => $count,
             'route' => $activity->path, 'request_activity_id' => $activity->id, 'user_id' => $activity->user_id,
             'metadata' => $metadata,
+            'source' => $activity->source,
         ]);
     }
 }

@@ -15,7 +15,7 @@ class RequestActivityFactory extends Factory
     {
         return [
             'request_id' => (string) Str::uuid(),
-            'source' => 'local',
+            'source' => 'intsec',
             'user_id' => null,
             'ip_address' => fake()->ipv4(),
             'ip_type' => 'public',

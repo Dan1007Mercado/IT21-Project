@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\MonitoringSource;
+
 return [
     'max_login_attempts' => env('INTSEC_MAX_LOGIN_ATTEMPTS', 5),
     'login_attempt_window_minutes' => env('INTSEC_LOGIN_ATTEMPT_WINDOW_MINUTES', 5),
@@ -21,7 +23,12 @@ return [
     'alert_cooldown_minutes' => env('INTSEC_ALERT_COOLDOWN_MINUTES', 15),
     'default_ip_block_duration_minutes' => env('INTSEC_DEFAULT_IP_BLOCK_DURATION_MINUTES', 60),
     'api_token' => env('INTSEC_API_TOKEN'),
-    'event_sources' => array_filter(explode(',', (string) env('INTSEC_EVENT_SOURCES', 'hotel-booking'))),
+    'source' => MonitoringSource::Intsec->value,
+    'sources' => [
+        MonitoringSource::Intsec->value => MonitoringSource::Intsec->label(),
+        MonitoringSource::HotelBooking->value => MonitoringSource::HotelBooking->label(),
+    ],
+    'event_sources' => array_values(array_unique(array_filter(array_map('trim', explode(',', (string) env('INTSEC_EVENT_SOURCES', MonitoringSource::HotelBooking->value)))))),
     'trusted_proxies' => array_values(array_filter(array_map('trim', explode(',', (string) env('INTSEC_TRUSTED_PROXIES', ''))))),
     'request_monitoring' => [
         'exclusions' => [

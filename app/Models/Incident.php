@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,6 +15,7 @@ class Incident extends Model
 
     protected $fillable = [
         'incident_id',
+        'source',
         'title',
         'description',
         'incident_type',
@@ -93,6 +95,11 @@ class Incident extends Model
     public function statusHistory(): HasMany
     {
         return $this->hasMany(IncidentStatusHistory::class)->latest('created_at');
+    }
+
+    public function scopeForSource(Builder $query, string $source): Builder
+    {
+        return $query->where('source', $source);
     }
 
     public static function generateIncidentId(): string
