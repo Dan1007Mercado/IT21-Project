@@ -85,7 +85,7 @@ A. Request spike / DDoS monitoring
 - Controller: app/Http/Controllers/DashboardController.php::ddosMonitoring()
 - Groups activity by hour; shows current requests, peak, suspicious spike count, and hourly trend.
 
-B. Attack frequency
+B. Request Frequency
 - View: resources/views/attack-frequency/index.blade.php
 - Controller: app/Http/Controllers/DashboardController.php::attackFrequency()
 - Shows request frequency grouped by IP.

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Services\Security\IntsecSettings;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Throwable;
 
@@ -22,6 +23,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        /*
+         * Cloudflare Tunnel terminates HTTPS at Cloudflare and forwards
+         * the request to Laravel locally over HTTP.
+         *
+         * When APP_URL uses HTTPS, force Laravel-generated URLs
+         * (including Vite assets) to use HTTPS as well.
+         */
+        if (str_starts_with(config('app.url'), 'https://')) {
+            URL::forceScheme('https');
+        }
+
         if ($this->app->runningUnitTests()) {
             return;
         }

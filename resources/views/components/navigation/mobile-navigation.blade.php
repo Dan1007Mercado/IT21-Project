@@ -12,7 +12,7 @@
                             <x-navigation.nav-item :href="route('monitoring.login-activity', $source->value)" :active="false">Login Activity</x-navigation.nav-item>
                             <x-navigation.nav-item :href="route('monitoring.ip-locations', $source->value)" :active="false">IP Monitoring</x-navigation.nav-item>
                             <x-navigation.nav-item :href="route('monitoring.request-activities', $source->value)" :active="false">Request Activity</x-navigation.nav-item>
-                            <x-navigation.nav-item :href="route('monitoring.attack-frequency', $source->value)" :active="false">Attack Frequency</x-navigation.nav-item>
+                            <x-navigation.nav-item :href="route('monitoring.attack-frequency', $source->value)" :active="false">Request Frequency</x-navigation.nav-item>
                             <x-navigation.nav-item :href="route('monitoring.ddos-monitoring', $source->value)" :active="false">DDoS Monitoring</x-navigation.nav-item>
                             @if ($source === \App\Enums\MonitoringSource::HotelBooking)<x-navigation.nav-item :href="route('monitoring.security-events', $source->value)" :active="false">Security Events</x-navigation.nav-item>@else<x-navigation.nav-item :href="route('admin.audit-logs')" :active="false">Audit Logs</x-navigation.nav-item>@endif
                         </div>

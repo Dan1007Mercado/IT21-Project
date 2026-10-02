@@ -12,7 +12,7 @@
                         <x-navigation.nav-item :href="route('monitoring.login-activity', $source->value)" :active="request()->routeIs('monitoring.login-activity') && $activeSource">Login Activity</x-navigation.nav-item>
                         <x-navigation.nav-item :href="route('monitoring.ip-locations', $source->value)" :active="request()->routeIs('monitoring.ip-locations') && $activeSource">IP Monitoring</x-navigation.nav-item>
                         <x-navigation.nav-item :href="route('monitoring.request-activities', $source->value)" :active="request()->routeIs('monitoring.request-activities') && $activeSource">Request Activity</x-navigation.nav-item>
-                        <x-navigation.nav-item :href="route('monitoring.attack-frequency', $source->value)" :active="request()->routeIs('monitoring.attack-frequency') && $activeSource">Attack Frequency</x-navigation.nav-item>
+                        <x-navigation.nav-item :href="route('monitoring.attack-frequency', $source->value)" :active="request()->routeIs('monitoring.attack-frequency') && $activeSource">Request Frequency</x-navigation.nav-item>
                         <x-navigation.nav-item :href="route('monitoring.ddos-monitoring', $source->value)" :active="request()->routeIs('monitoring.ddos-monitoring') && $activeSource">DDoS Monitoring</x-navigation.nav-item>
                         @if ($source === \App\Enums\MonitoringSource::HotelBooking)
                             <x-navigation.nav-item :href="route('monitoring.security-events', $source->value)" :active="request()->routeIs('monitoring.security-events') && $activeSource">Security Events</x-navigation.nav-item>
