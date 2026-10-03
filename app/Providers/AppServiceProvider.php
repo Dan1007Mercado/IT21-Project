@@ -2,12 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\AuditLog;
 use App\Models\AuthenticationLog;
 use App\Models\BlockedIp;
 use App\Models\Incident;
 use App\Models\RequestActivity;
 use App\Models\SecurityAlert;
 use App\Models\SecurityEvent;
+use App\Models\SystemSetting;
 use App\Observers\BroadcastSecurityState;
 use App\Services\Security\IntsecSettings;
 use Illuminate\Support\Facades\Schema;
@@ -30,7 +32,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        foreach ([RequestActivity::class, AuthenticationLog::class, SecurityEvent::class, SecurityAlert::class, Incident::class, BlockedIp::class] as $model) {
+        foreach ([RequestActivity::class, AuthenticationLog::class, SecurityEvent::class, SecurityAlert::class, Incident::class, BlockedIp::class, AuditLog::class, SystemSetting::class] as $model) {
             $model::observe(BroadcastSecurityState::class);
         }
 

@@ -3,6 +3,13 @@
 use App\Enums\MonitoringSource;
 
 return [
+    // Local broadcasts run synchronously after commit so Reverb can be
+    // diagnosed without a hidden queue-worker dependency. Production may
+    // opt into a supervised durable queue with "database" or another driver.
+    'realtime_queue_connection' => env(
+        'INTSEC_REALTIME_QUEUE_CONNECTION',
+        env('APP_ENV', 'production') === 'local' ? 'sync' : 'database',
+    ),
     'max_login_attempts' => env('INTSEC_MAX_LOGIN_ATTEMPTS', 5),
     'login_attempt_window_minutes' => env('INTSEC_LOGIN_ATTEMPT_WINDOW_MINUTES', 5),
     'login_block_duration_minutes' => env('INTSEC_LOGIN_BLOCK_DURATION_MINUTES', 15),

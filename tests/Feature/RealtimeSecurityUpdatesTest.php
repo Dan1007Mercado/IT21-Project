@@ -38,7 +38,7 @@ class RealtimeSecurityUpdatesTest extends TestCase
                 && $event->source === 'hotel-booking'
                 && $event->record['path'] === '/reservations'
                 && ! array_key_exists('user_agent', $event->record)
-                && $event->connection === 'database'
+                && $event->connection === 'sync'
                 && $channel instanceof PrivateChannel
                 && $channel->name === 'private-intsec.security';
         });
@@ -46,12 +46,28 @@ class RealtimeSecurityUpdatesTest extends TestCase
 
     public function test_realtime_delivery_is_queued_so_an_unavailable_reverb_server_cannot_break_persistence(): void
     {
+        config()->set('intsec.realtime_queue_connection', 'database');
         Queue::fake();
 
         $activity = RequestActivity::factory()->create(['source' => 'hotel-booking']);
 
         $this->assertModelExists($activity);
         Queue::assertPushed(BroadcastEvent::class);
+    }
+
+    public function test_broadcast_payload_recursively_redacts_secrets(): void
+    {
+        $event = new SecurityStateChanged('security_event', 'created', 'hotel-booking', [
+            'id' => 10,
+            'api_token' => 'do-not-broadcast',
+            'nested' => ['Authorization' => 'Bearer secret', 'safe' => 'visible'],
+        ]);
+
+        $payload = $event->broadcastWith();
+
+        $this->assertSame('[REDACTED]', $payload['record']['api_token']);
+        $this->assertSame('[REDACTED]', $payload['record']['nested']['Authorization']);
+        $this->assertSame('visible', $payload['record']['nested']['safe']);
     }
 
     public function test_private_security_channel_allows_administrators_and_rejects_standard_users(): void
@@ -89,7 +105,7 @@ class RealtimeSecurityUpdatesTest extends TestCase
             Event::assertDispatched(SecurityStateChanged::class, fn (SecurityStateChanged $event): bool => $event->entity === $entity
                 && ($entity === 'blocked_ip' ? $event->source === null : $event->source === 'hotel-booking'));
         }
-        Event::assertDispatched(SecurityStateChanged::class, fn (SecurityStateChanged $event): bool => $event->entity === 'blocked_ip' && $event->action === 'updated' && $event->record['is_enabled'] === false);
+        Event::assertDispatched(SecurityStateChanged::class, fn (SecurityStateChanged $event): bool => $event->entity === 'blocked_ip' && $event->action === 'unblocked' && $event->record['is_enabled'] === false);
     }
 
     public function test_anonymous_clients_cannot_authorize_the_private_security_channel(): void

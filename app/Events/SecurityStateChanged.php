@@ -27,9 +27,10 @@ class SecurityStateChanged implements ShouldBroadcast, ShouldDispatchAfterCommit
         public ?string $source,
         public array $record,
     ) {
-        // A failed WebSocket server must never fail the database write/request.
-        // Production broadcasts are handled by the durable database queue.
-        $this->connection = 'database';
+        // The event itself is dispatched after commit. Local uses the sync
+        // queue for deterministic diagnostics; production can select a
+        // supervised durable queue without changing event semantics.
+        $this->connection = (string) config('intsec.realtime_queue_connection', 'database');
     }
 
     public function broadcastOn(): array
@@ -49,8 +50,24 @@ class SecurityStateChanged implements ShouldBroadcast, ShouldDispatchAfterCommit
             'entity' => $this->entity,
             'action' => $this->action,
             'source' => $this->source,
-            'record' => $this->record,
+            'record' => $this->sanitize($this->record),
             'broadcasted_at' => now()->toIso8601String(),
         ];
+    }
+
+    /** @param array<string, mixed> $values */
+    private function sanitize(array $values): array
+    {
+        $sensitive = '/(^|[_-])(password|passwd|secret|token|authorization|cookie|csrf|session|credential|api[_-]?key)([_-]|$)/i';
+
+        foreach ($values as $key => $value) {
+            if (preg_match($sensitive, (string) $key) === 1) {
+                $values[$key] = '[REDACTED]';
+            } elseif (is_array($value)) {
+                $values[$key] = $this->sanitize($value);
+            }
+        }
+
+        return $values;
     }
 }

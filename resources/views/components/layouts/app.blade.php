@@ -11,6 +11,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
     <x-app-assets />
     @if (auth()->user()?->isAdministrator())
@@ -38,6 +39,11 @@
         <p id="intsec-realtime-message" class="text-sm text-zinc-200">New security activity is available.</p>
         <button id="intsec-realtime-refresh" type="button" class="mt-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">Refresh current view</button>
     </div>
+    @if (auth()->user()?->isAdministrator())
+        <div id="intsec-realtime-status" class="fixed bottom-5 left-5 z-40 rounded-full border border-amber-500/40 bg-zinc-900/95 px-3 py-1.5 text-xs text-amber-200 shadow-lg" role="status" aria-live="polite">
+            Connecting…
+        </div>
+    @endif
     {{ $scripts ?? '' }}
 </body>
 </html>
