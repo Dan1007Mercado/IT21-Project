@@ -1,6 +1,7 @@
-<x-layouts.app title="IP Request Frequency - INTSEC" wide>
+<x-layouts.app title="IP Request Frequency - INTSEC" wide realtime-entities="request_activity,security_alert" :realtime-source="$monitoringSource->value">
     <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">{{ $monitoringSource->label() }} request telemetry</p><h1 class="mt-2 text-3xl font-semibold text-white">IP Request Frequency</h1><p class="mt-2 text-sm text-zinc-400">Read-only aggregation of {{ $monitoringSource->label() }} application requests. Viewing this page does not run detection.</p></header>
-    <form method="GET" class="mt-6 grid gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-2 xl:grid-cols-5">
+    <form method="GET" class="mt-6 grid gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-2 xl:grid-cols-6">
+        <input name="search" value="{{ request('search') }}" placeholder="Search IP" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
         <input name="ip" value="{{ request('ip') }}" placeholder="IP contains…" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
         <select name="range" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">@foreach (['1h'=>'Last hour','24h'=>'Last 24 hours','7d'=>'Last 7 days','30d'=>'Last 30 days'] as $value=>$label)<option value="{{ $value }}" @selected(request('range','7d')===$value)>{{ $label }}</option>@endforeach</select>
         <select name="classification" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All classifications</option>@foreach (['normal','suspicious','malicious'] as $value)<option value="{{ $value }}" @selected(request('classification')===$value)>{{ ucfirst($value) }}</option>@endforeach</select>

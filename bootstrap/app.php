@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
+        'middleware' => ['web', 'auth', 'admin'],
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $trustedProxies = array_values(array_filter(array_map(
             'trim',

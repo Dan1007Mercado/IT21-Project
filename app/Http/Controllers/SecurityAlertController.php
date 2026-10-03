@@ -22,7 +22,7 @@ class SecurityAlertController extends Controller
         $query = SecurityAlert::query()->with(['acknowledgedBy', 'assignedAdministrator', 'incident', 'securityEvent']);
         $this->applyFilters($query, $request);
 
-        $alerts = $query->orderByDesc('occurred_at')->paginate(15)->appends($request->query());
+        $alerts = $query->orderByDesc('occurred_at')->simplePaginate(10)->withQueryString();
 
         $summary = [
             'new' => SecurityAlert::query()->where('status', 'new')->count(),

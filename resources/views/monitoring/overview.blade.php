@@ -1,4 +1,4 @@
-<x-layouts.app :title="$monitoringSource->label().' Monitoring - INTSEC'" wide>
+<x-layouts.app :title="$monitoringSource->label().' Monitoring - INTSEC'" wide realtime-entities="*" :realtime-source="$monitoringSource->value">
     <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">{{ $monitoringSource->label() }} monitoring</p><h1 class="mt-2 text-3xl font-semibold text-white">Overview</h1><p class="mt-2 text-sm text-zinc-400">Source-isolated telemetry and security workflow for <span class="font-mono">{{ $monitoringSource->value }}</span>.</p></header>
     <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <x-security.metric-card label="Requests" :value="number_format($requestCount)" />

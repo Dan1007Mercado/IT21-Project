@@ -8,6 +8,7 @@ use App\Http\Controllers\IpManagementController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SecurityAlertController;
+use App\Http\Controllers\UserController;
 use App\Http\Middleware\EnsureIpNotBlocked;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -57,9 +58,8 @@ Route::middleware('auth')->group(function (): void {
             Route::get('/security-events', [MonitoringController::class, 'securityEvents'])->name('security-events');
         });
 
-        Route::get('/admin', function () {
-            return view('admin.index');
-        })->name('admin.index');
+        Route::get('/admin', [UserController::class, 'index'])->name('admin.index');
+        Route::resource('/admin/users', UserController::class)->names('users');
 
         Route::get('/admin/settings', [AdminSecurityController::class, 'settings'])->name('admin.settings');
         Route::post('/admin/settings', [AdminSecurityController::class, 'saveSettings'])->name('admin.settings.store');

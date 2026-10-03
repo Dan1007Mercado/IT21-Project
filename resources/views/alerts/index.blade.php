@@ -1,4 +1,4 @@
-<x-layouts.app title="Security Alerts - INTSEC">
+<x-layouts.app title="Security Alerts - INTSEC" realtime-entities="security_alert">
     <div class="space-y-6">
         <div>
             <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Security</p>
@@ -99,7 +99,7 @@
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                                 <td class="px-3.5 py-3"><input form="bulk-alerts" class="alert-select" type="checkbox" name="alert_ids[]" value="{{ $alert->id }}"></td>
                                 <td class="px-3.5 py-3 font-mono">{{ $alert->alert_id }}</td>
-                                <td class="px-3.5 py-3 text-xs font-semibold uppercase text-cyan-300">{{ config('intsec.sources.'.$alert->source, $alert->source) }}</td>
+                                <td class="px-3.5 py-3"><x-security.source-badge :source="$alert->source" /></td>
                                 <td class="px-3.5 py-3"><a href="{{ route('alerts.show', $alert) }}" class="hover:underline">{{ $alert->title }}</a></td>
                                 <td class="px-3.5 py-3 text-xs text-zinc-300">{{ $alert->typeLabel() }}</td>
                                 <td class="px-3.5 py-3"><span class="rounded border px-2 py-1 text-xs {{ $severityColor }}">{{ $alert->severity }}</span></td>

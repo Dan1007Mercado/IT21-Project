@@ -81,10 +81,26 @@ class AdminSecurityController extends Controller
 
     public function auditLogs(Request $request): View
     {
-        $logs = AuditLog::query()
-            ->with('actor')
+        $query = AuditLog::query()->with('actor');
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $query->where(function ($nested) use ($search): void {
+                $nested->where('action', 'like', '%'.$search.'%')
+                    ->orWhere('resource_type', 'like', '%'.$search.'%')
+                    ->orWhere('resource_name', 'like', '%'.$search.'%')
+                    ->orWhere('ip_address', 'like', '%'.$search.'%')
+                    ->orWhere('description', 'like', '%'.$search.'%')
+                    ->orWhereHas('actor', fn ($actor) => $actor
+                        ->where('name', 'like', '%'.$search.'%')
+                        ->orWhere('email', 'like', '%'.$search.'%'));
+            });
+        }
+
+        $logs = $query
             ->latest('occurred_at')
-            ->paginate(10);
+            ->simplePaginate(10)
+            ->withQueryString();
 
         return view('admin.audit-logs', [
             'logs' => $logs,

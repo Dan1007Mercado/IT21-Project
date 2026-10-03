@@ -34,6 +34,19 @@ class MonitoringController extends Controller
         $monitoringSource = $this->source($source);
         $query = RequestActivity::query()->forSource($source);
 
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $query->where(function ($nested) use ($search): void {
+                $nested->where('ip_address', 'like', '%'.$search.'%')
+                    ->orWhere('path', 'like', '%'.$search.'%')
+                    ->orWhere('route_name', 'like', '%'.$search.'%')
+                    ->orWhere('method', 'like', '%'.$search.'%')
+                    ->orWhere('status_code', 'like', '%'.$search.'%')
+                    ->orWhere('request_id', 'like', '%'.$search.'%')
+                    ->orWhere('classification', 'like', '%'.$search.'%');
+            });
+        }
+
         if ($request->filled('ip')) {
             $query->where('ip_address', 'like', '%'.trim((string) $request->input('ip')).'%');
         }
@@ -46,7 +59,7 @@ class MonitoringController extends Controller
 
         return view('monitoring.request-activities', [
             'monitoringSource' => $monitoringSource,
-            'activities' => $query->latest('occurred_at')->paginate(25)->appends($request->query()),
+            'activities' => $query->latest('occurred_at')->simplePaginate(10)->withQueryString(),
         ]);
     }
 
@@ -54,6 +67,18 @@ class MonitoringController extends Controller
     {
         $monitoringSource = $this->source($source);
         $query = SecurityEvent::query()->forSource($source);
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $query->where(function ($nested) use ($search): void {
+                $nested->where('title', 'like', '%'.$search.'%')
+                    ->orWhere('event_type', 'like', '%'.$search.'%')
+                    ->orWhere('source_ip', 'like', '%'.$search.'%')
+                    ->orWhere('external_event_id', 'like', '%'.$search.'%')
+                    ->orWhere('metadata->route', 'like', '%'.$search.'%')
+                    ->orWhere('metadata->request_id', 'like', '%'.$search.'%');
+            });
+        }
 
         foreach (['event_type', 'severity', 'status'] as $field) {
             if ($request->filled($field)) {
@@ -63,7 +88,7 @@ class MonitoringController extends Controller
 
         return view('monitoring.security-events', [
             'monitoringSource' => $monitoringSource,
-            'events' => $query->latest('occurred_at')->paginate(25)->appends($request->query()),
+            'events' => $query->latest('occurred_at')->simplePaginate(10)->withQueryString(),
         ]);
     }
 

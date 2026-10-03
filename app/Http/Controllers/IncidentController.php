@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Incident;
-use App\Models\IncidentRemark;
 use App\Models\SecurityEvent;
 use App\Models\User;
 use App\Services\Security\IpManagementService;
@@ -25,8 +24,8 @@ class IncidentController extends Controller
         $incidents = $query
             ->orderByDesc('last_detected_at')
             ->orderByDesc('created_at')
-            ->paginate(15)
-            ->appends($request->query());
+            ->simplePaginate(10)
+            ->withQueryString();
 
         $summary = [
             'open' => Incident::query()->where('status', 'open')->count(),

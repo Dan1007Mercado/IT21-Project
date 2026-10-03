@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -37,6 +37,8 @@ class SecurityAlert extends Model
     public const TYPE_DECOY_ACCESS = 'decoy_access';
 
     public const TYPE_PROTECTED_ROUTE_ACCESS = 'protected_route_access';
+
+    public const TYPE_SQL_INJECTION = 'sql_injection';
 
     protected $fillable = [
         'alert_id',
@@ -117,6 +119,7 @@ class SecurityAlert extends Model
             self::TYPE_SENSITIVE_PATH_PROBE => 'Sensitive-path probing',
             self::TYPE_DECOY_ACCESS => 'Decoy endpoint access',
             self::TYPE_PROTECTED_ROUTE_ACCESS => 'Repeated protected-route access',
+            self::TYPE_SQL_INJECTION => 'SQL injection attempt',
             self::TYPE_REPEATED_IP_ACTIVITY => 'Repeated IP activity',
             default => $this->alert_type
                 ? ucwords(str_replace(['_', '-'], ' ', $this->alert_type))

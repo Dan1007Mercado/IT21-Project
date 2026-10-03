@@ -10,12 +10,16 @@ class SecurityBlocklistController extends Controller
 {
     public function __invoke(): JsonResponse
     {
-        return response()->json([
-            'data' => BlockedIp::query()->enforcing()->where('action', BlockedIp::ACTION_BLOCK)
-                ->orderByDesc('blocked_at')->get(['ip_address', 'expires_at'])->map(fn (BlockedIp $rule) => [
+        $rules = BlockedIp::query()->enforcing()->where('action', BlockedIp::ACTION_BLOCK)
+            ->orderByDesc('blocked_at')->get(['ip_address', 'expires_at'])->map(fn (BlockedIp $rule) => [
                     'ip_address' => $rule->ip_address,
                     'expires_at' => $rule->expires_at?->toIso8601String(),
-                ])->values(),
-        ]);
+                ])->values();
+
+        return response()->json([
+            'data' => $rules,
+            'policy_version' => hash('sha256', $rules->toJson()),
+            'generated_at' => now()->toIso8601String(),
+        ])->header('Cache-Control', 'no-store, private');
     }
 }

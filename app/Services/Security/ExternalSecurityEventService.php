@@ -65,7 +65,42 @@ class ExternalSecurityEventService
             ]);
 
             $alert = null;
-            if ($eventType === 'login_failed' && $failedCount >= IntsecSettings::getInt('repeated_authentication_threshold', 5)) {
+            if ($eventType === 'sql_injection_attempt') {
+                $rule = $this->sqlInjectionRule($metadata['rule'] ?? null);
+                $confidence = $this->sqlInjectionConfidence($rule, $metadata['confidence'] ?? null);
+                $route = (string) $payload['route'];
+                $parameter = filled($metadata['parameter'] ?? null) ? mb_substr((string) $metadata['parameter'], 0, 120) : 'unknown';
+                $event->update([
+                    'rule_key' => 'external.sqli.'.strtolower($rule),
+                    'severity' => 'High',
+                    'risk_score' => 85,
+                    'confidence' => $confidence,
+                    'metadata' => array_merge($event->metadata ?? [], [
+                        'rule' => $rule,
+                        'parameter' => $parameter,
+                        'confidence' => $confidence,
+                    ]),
+                ]);
+                $alert = $this->detectionEngine->record([
+                    'rule_key' => 'external.sqli.'.strtolower($rule),
+                    'rule_name' => 'Contextual SQL injection detection: '.$rule,
+                    'alert_type' => SecurityAlert::TYPE_SQL_INJECTION,
+                    'title' => 'SQL injection attempt reported by monitored application',
+                    'description' => 'A monitored request matched an authoritative contextual SQL injection rule.',
+                    'severity' => 'High',
+                    'source_ip' => $ip,
+                    'grouping_key' => $source.'|'.$ip.'|'.$route.'|'.$parameter.'|'.$rule,
+                    'threshold' => 1,
+                    'window_seconds' => IntsecSettings::getInt('alert_cooldown_minutes', 15) * 60,
+                    'observed_count' => 1,
+                    'confidence' => $confidence,
+                    'risk_score' => 85,
+                    'route' => $route,
+                    'security_event_id' => $event->id,
+                    'source' => $source,
+                    'metadata' => ['source' => $source, 'parameter' => $parameter, 'request_id' => $metadata['request_id'] ?? null],
+                ]);
+            } elseif ($eventType === 'login_failed' && $failedCount >= IntsecSettings::getInt('repeated_authentication_threshold', 5)) {
                 $alert = $this->detectionEngine->record([
                     'rule_key' => 'external.auth.repeated_ip_failures',
                     'rule_name' => 'Repeated external authentication failures',
@@ -155,6 +190,9 @@ class ExternalSecurityEventService
 
     private function classify(string $eventType, int $failedCount, int $activityCount, bool $contextuallySuspicious): string
     {
+        if ($eventType === 'sql_injection_attempt') {
+            return 'High';
+        }
         if ($eventType === 'monitored_login_attempt' || $eventType === 'unauthorized_access') {
             return 'Suspicious';
         }
@@ -193,5 +231,20 @@ class ExternalSecurityEventService
     private function titleFor(string $eventType): string
     {
         return ucwords(str_replace('_', ' ', $eventType)).' reported by monitored application';
+    }
+
+    private function sqlInjectionRule(mixed $rule): string
+    {
+        $allowed = ['SQLI_TIME_BASED', 'SQLI_UNION_SELECT', 'SQLI_SCHEMA_PROBE', 'SQLI_STACKED_QUERY', 'SQLI_TAUTOLOGY', 'SQLI_COMMENT_OPERATOR'];
+
+        return in_array($rule, $allowed, true) ? $rule : 'SQLI_CONTEXTUAL_MATCH';
+    }
+
+    private function sqlInjectionConfidence(string $rule, mixed $reported): float
+    {
+        $minimum = $rule === 'SQLI_CONTEXTUAL_MATCH' ? 0.75 : 0.90;
+        $value = is_numeric($reported) ? (float) $reported : $minimum;
+
+        return max($minimum, min(0.99, $value));
     }
 }

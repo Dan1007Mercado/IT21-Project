@@ -1,4 +1,4 @@
-<x-layouts.app title="Incident management - INTSEC">
+<x-layouts.app title="Incident management - INTSEC" realtime-entities="incident,security_alert">
     <style>
         .intsec-scope {
             --ink: #0A0E13;
@@ -281,7 +281,7 @@
                                 <td class="font-mono-plex px-3.5 py-3" style="border-left: 3px solid {{ $sevVar }}; color: var(--text);">
                                     {{ $incident->incident_id }}
                                 </td>
-                                <td class="px-3.5 py-3 text-xs font-semibold uppercase" style="color: var(--accent);">{{ config('intsec.sources.'.$incident->source, $incident->source) }}</td>
+                                <td class="px-3.5 py-3"><x-security.source-badge :source="$incident->source" /></td>
                                 <td class="px-3.5 py-3">
                                     <a href="{{ route('incidents.show', $incident) }}" class="font-medium hover:underline" style="color: var(--text);">
                                         {{ $incident->title }}
@@ -321,7 +321,7 @@
 
         <div class="flex items-center justify-between gap-3 border-t border-zinc-800 px-3 py-4 text-sm text-zinc-300">
             <div class="text-zinc-400">
-                Showing {{ $incidents->firstItem() ?? 0 }}-{{ $incidents->lastItem() ?? 0 }} of {{ $incidents->total() }} incidents
+                Showing {{ $incidents->firstItem() ?? 0 }}-{{ $incidents->lastItem() ?? 0 }} incidents on this page
             </div>
             <div class="flex justify-end">
                 {{ $incidents->appends(request()->query())->links() }}

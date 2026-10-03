@@ -7,7 +7,9 @@ use App\Models\RequestActivity;
 use App\Models\SecurityAlert;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\Security\RequestDetectionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Pagination\Paginator;
 use Tests\TestCase;
 
 class SourceAwareMonitoringTest extends TestCase
@@ -101,13 +103,32 @@ class SourceAwareMonitoringTest extends TestCase
             RequestActivity::factory()->create(['source' => $source, 'ip_address' => '8.8.8.8', 'status_code' => 404, 'occurred_at' => now()]);
         }
 
-        app(\App\Services\Security\RequestDetectionService::class)->evaluate(RequestActivity::query()->forSource('hotel-booking')->firstOrFail());
+        app(RequestDetectionService::class)->evaluate(RequestActivity::query()->forSource('hotel-booking')->firstOrFail());
         $this->assertDatabaseCount('security_alerts', 0);
 
         $second = RequestActivity::factory()->create(['source' => 'hotel-booking', 'ip_address' => '8.8.8.8', 'status_code' => 404, 'occurred_at' => now()]);
-        app(\App\Services\Security\RequestDetectionService::class)->evaluate($second);
+        app(RequestDetectionService::class)->evaluate($second);
 
         $this->assertSame('hotel-booking', SecurityAlert::query()->sole()->source);
+    }
+
+    public function test_request_listing_uses_ten_row_simple_pagination_search_and_preserves_filters(): void
+    {
+        $admin = User::factory()->administrator()->create();
+        RequestActivity::factory()->count(12)->create([
+            'source' => 'hotel-booking', 'path' => '/hotel-reservations', 'method' => 'POST',
+        ]);
+        RequestActivity::factory()->create(['source' => 'intsec', 'path' => '/hotel-reservations', 'method' => 'POST']);
+
+        $response = $this->actingAs($admin)->get('/monitoring/hotel-booking/request-activity?search=hotel&method=POST');
+        $activities = $response->viewData('activities');
+
+        $response->assertOk()->assertSee('/hotel-reservations');
+        $this->assertInstanceOf(Paginator::class, $activities);
+        $this->assertCount(10, $activities->items());
+        $this->assertStringContainsString('search=hotel', $activities->nextPageUrl());
+        $this->assertStringContainsString('method=POST', $activities->nextPageUrl());
+        $this->assertTrue($activities->getCollection()->every(fn (RequestActivity $activity): bool => $activity->source === 'hotel-booking'));
     }
 
     /** @return array<string, mixed> */

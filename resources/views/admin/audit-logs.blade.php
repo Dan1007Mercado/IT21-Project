@@ -7,7 +7,8 @@
         <a href="{{ route('admin.settings') }}" class="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:border-cyan-500/40">System settings</a>
     </div>
 
-    <section class="mt-8 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900">
+    <form method="GET" class="mt-6 flex gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4"><input name="search" value="{{ request('search') }}" placeholder="Search action, actor, resource, or IP" class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"><button class="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-zinc-950">Search</button></form>
+    <section class="mt-6 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900">
         <div class="overflow-x-auto">
             <table class="w-full min-w-[920px] text-left text-sm">
                 <thead class="border-b border-zinc-800 text-xs uppercase tracking-[0.14em] text-zinc-500">

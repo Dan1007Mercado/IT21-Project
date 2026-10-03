@@ -47,7 +47,7 @@ class IpManagementController extends Controller
             };
         }
 
-        $rules = $query->orderByDesc('blocked_at')->paginate(15)->appends($request->query());
+        $rules = $query->orderByDesc('blocked_at')->simplePaginate(10)->withQueryString();
 
         $summary = [
             'total' => BlockedIp::query()->count(),

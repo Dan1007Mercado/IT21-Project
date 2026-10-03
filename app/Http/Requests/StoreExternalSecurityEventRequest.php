@@ -17,7 +17,7 @@ class StoreExternalSecurityEventRequest extends FormRequest
         return [
             'event_id' => ['nullable', 'uuid'],
             'source' => ['required', 'string', 'max:100', Rule::in(config('intsec.event_sources', []))],
-            'event_type' => ['required', 'string', Rule::in(['login_failed', 'login_success', 'logout', 'unauthorized_access', 'monitored_login_attempt', 'suspicious_request'])],
+            'event_type' => ['required', 'string', Rule::in(['login_failed', 'login_success', 'logout', 'unauthorized_access', 'monitored_login_attempt', 'suspicious_request', 'sql_injection_attempt'])],
             'severity' => ['nullable', 'string', 'max:20'],
             'ip' => ['required', 'ip'],
             'route' => ['required', 'string', 'max:2048'],

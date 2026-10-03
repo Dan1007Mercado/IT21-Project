@@ -97,6 +97,16 @@ class DashboardController extends Controller
         if ($request->filled('ip')) {
             $query->where('request_activities.ip_address', 'like', '%'.trim((string) $request->input('ip')).'%');
         }
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $query->where(function ($nested) use ($search): void {
+                $nested->where('request_activities.ip_address', 'like', '%'.$search.'%')
+                    ->orWhere('ip_intelligences.country', 'like', '%'.$search.'%')
+                    ->orWhere('ip_intelligences.region', 'like', '%'.$search.'%')
+                    ->orWhere('ip_intelligences.city', 'like', '%'.$search.'%')
+                    ->orWhere('ip_intelligences.organization', 'like', '%'.$search.'%');
+            });
+        }
         if ($request->filled('ip_type')) {
             $query->where('request_activities.ip_type', $request->input('ip_type'));
         }
@@ -104,7 +114,7 @@ class DashboardController extends Controller
             $query->where('ip_intelligences.country_code', $request->input('country'));
         }
 
-        $paginator = $query->orderByDesc('event_count')->paginate(15)->appends($request->query());
+        $paginator = $query->orderByDesc('event_count')->simplePaginate(10)->withQueryString();
         $ips = $paginator->getCollection()->pluck('ip_address')->filter()->values();
         $blocked = $this->requestQueries->blockedStates($ips);
 
@@ -185,7 +195,11 @@ class DashboardController extends Controller
             $query->havingRaw('COUNT(*) >= ?', [(int) $request->input('min_requests')]);
         }
 
-        $paginator = $query->orderByDesc('request_count')->paginate(15)->appends($request->query());
+        if ($request->filled('search')) {
+            $query->where('ip_address', 'like', '%'.trim((string) $request->input('search')).'%');
+        }
+
+        $paginator = $query->orderByDesc('request_count')->simplePaginate(10)->withQueryString();
         $ips = $paginator->getCollection()->pluck('ip_address')->filter()->values();
         $paths = $this->requestQueries->mostRequestedPaths($ips, $start, $source->value);
         $blocked = $this->requestQueries->blockedStates($ips);
@@ -228,6 +242,18 @@ class DashboardController extends Controller
         if ($request->filled('ip')) {
             $query->where('ip_address', 'like', '%'.trim((string) $request->input('ip')).'%');
         }
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $query->where(function (Builder $nested) use ($search): void {
+                $nested->where('attempted_identity', 'like', '%'.$search.'%')
+                    ->orWhere('ip_address', 'like', '%'.$search.'%')
+                    ->orWhere('action', 'like', '%'.$search.'%')
+                    ->orWhere('status', 'like', '%'.$search.'%')
+                    ->orWhereHas('user', fn (Builder $userQuery) => $userQuery
+                        ->where('name', 'like', '%'.$search.'%')
+                        ->orWhere('email', 'like', '%'.$search.'%'));
+            });
+        }
         if ($request->filled('from')) {
             $query->whereDate('occurred_at', '>=', $request->input('from'));
         }
@@ -236,7 +262,7 @@ class DashboardController extends Controller
         }
 
         return view('login-activity', [
-            'logs' => $query->latest('occurred_at')->paginate(20)->appends($request->query()),
+            'logs' => $query->latest('occurred_at')->simplePaginate(10)->withQueryString(),
             'users' => $request->user()->isAdministrator()
                 ? User::query()->orderBy('name')->get(['id', 'name', 'email'])
                 : collect(),

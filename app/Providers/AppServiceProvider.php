@@ -2,6 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\AuthenticationLog;
+use App\Models\BlockedIp;
+use App\Models\Incident;
+use App\Models\RequestActivity;
+use App\Models\SecurityAlert;
+use App\Models\SecurityEvent;
+use App\Observers\BroadcastSecurityState;
 use App\Services\Security\IntsecSettings;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -23,6 +30,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        foreach ([RequestActivity::class, AuthenticationLog::class, SecurityEvent::class, SecurityAlert::class, Incident::class, BlockedIp::class] as $model) {
+            $model::observe(BroadcastSecurityState::class);
+        }
+
         /*
          * Cloudflare Tunnel terminates HTTPS at Cloudflare and forwards
          * the request to Laravel locally over HTTP.

@@ -1,6 +1,7 @@
-<x-layouts.app title="Login Activity - INTSEC" wide>
+<x-layouts.app title="Login Activity - INTSEC" wide realtime-entities="authentication_log" :realtime-source="$monitoringSource->value">
     <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">{{ $monitoringSource->label() }} authentication telemetry</p><h1 class="mt-2 text-3xl font-semibold text-white">Login activity</h1><p class="mt-2 text-sm text-zinc-400">Login attempts, successful authentication, and logout only—general requests are not shown here.</p></header>
-    <form method="GET" class="mt-6 grid gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-2 xl:grid-cols-6">
+    <form method="GET" class="mt-6 grid gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-2 xl:grid-cols-7">
+        <input name="search" value="{{ request('search') }}" placeholder="Search activity" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
         <select name="status" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All outcomes</option><option value="successful" @selected(request('status')==='successful')>Successful</option><option value="failed" @selected(request('status')==='failed')>Failed</option></select>
         <select name="action" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">All actions</option><option value="login" @selected(request('action')==='login')>Login</option><option value="logout" @selected(request('action')==='logout')>Logout</option></select>
         <input name="identity" value="{{ request('identity') }}" placeholder="Identity/email" class="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">

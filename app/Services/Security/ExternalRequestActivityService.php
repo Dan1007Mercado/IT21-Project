@@ -3,6 +3,7 @@
 namespace App\Services\Security;
 
 use App\Models\RequestActivity;
+use App\Models\SecurityEvent;
 
 final class ExternalRequestActivityService
 {
@@ -47,6 +48,12 @@ final class ExternalRequestActivityService
         if (! $activity->wasRecentlyCreated) {
             return ['activity' => $activity, 'duplicate' => true];
         }
+
+        SecurityEvent::query()
+            ->where('source', $activity->source)
+            ->whereNull('request_activity_id')
+            ->where('metadata->request_id', $activity->request_id)
+            ->update(['request_activity_id' => $activity->id]);
 
         $this->ipEnrichment->observe($activity->ip_address);
         $this->requestDetection->evaluate($activity);

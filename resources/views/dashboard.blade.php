@@ -1,4 +1,4 @@
-<x-layouts.app title="Security Overview - INTSEC" wide>
+<x-layouts.app title="Security Overview - INTSEC" wide realtime-entities="*">
     <header class="flex flex-col gap-4 border-b border-zinc-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div><p class="text-xs font-medium uppercase tracking-[0.2em] text-cyan-400">INTSEC operations</p><h1 class="mt-2 text-3xl font-semibold text-white">Security overview</h1><p class="mt-2 text-sm text-zinc-400">Read-only operational visibility from persisted telemetry and security records.</p></div>
         <nav class="flex gap-3 text-xs" aria-label="Dashboard range">@foreach (['today' => 'Today','7d' => '7 days','30d' => '30 days','90d' => '90 days'] as $value => $label)<a href="{{ route('dashboard', ['range' => $value]) }}" class="{{ $activityRange === $value ? 'text-cyan-300' : 'text-zinc-500 hover:text-zinc-300' }}">{{ $label }}</a>@endforeach</nav>

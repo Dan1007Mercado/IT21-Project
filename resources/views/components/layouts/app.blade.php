@@ -2,6 +2,8 @@
     'title' => config('app.name', 'INTSEC'),
     'wide' => false,
     'flush' => false,
+    'realtimeEntities' => '',
+    'realtimeSource' => '',
 ])
 
 <!DOCTYPE html>
@@ -11,9 +13,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }}</title>
     <x-app-assets />
+    @if (auth()->user()?->isAdministrator())
+        <meta name="intsec-realtime-enabled" content="1">
+    @endif
     {{ $head ?? '' }}
 </head>
-<body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+<body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased" data-realtime-entities="{{ $realtimeEntities }}" data-realtime-source="{{ $realtimeSource }}">
     <div class="min-h-screen lg:pl-72">
         <x-navigation.sidebar />
         <x-navigation.mobile-navigation />
@@ -28,6 +33,10 @@
             @endif
             {{ $slot }}
         </main>
+    </div>
+    <div id="intsec-realtime-indicator" class="fixed bottom-5 right-5 z-50 hidden max-w-sm rounded-lg border border-cyan-500/40 bg-zinc-900 p-4 shadow-2xl" role="status" aria-live="polite">
+        <p id="intsec-realtime-message" class="text-sm text-zinc-200">New security activity is available.</p>
+        <button id="intsec-realtime-refresh" type="button" class="mt-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">Refresh current view</button>
     </div>
     {{ $scripts ?? '' }}
 </body>

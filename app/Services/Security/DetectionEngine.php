@@ -40,7 +40,10 @@ final class DetectionEngine
                 ]),
             ]);
 
-            return $existing->fresh();
+            $updated = $existing->fresh();
+            $this->correlation->correlate($updated);
+
+            return $updated;
         }
 
         $alert = DB::transaction(function () use ($detection, $deduplicationKey): SecurityAlert {

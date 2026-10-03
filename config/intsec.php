@@ -33,7 +33,7 @@ return [
     'request_monitoring' => [
         'exclusions' => [
             '/up', '/favicon.ico', '/build/*', '/css/*', '/js/*', '/images/*', '/storage/*',
-            '/api/security/*',
+            '/api/security/*', '/broadcasting/auth',
         ],
     ],
     'ip_intelligence' => [
