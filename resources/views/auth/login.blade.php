@@ -16,8 +16,22 @@
                 <input id="password" name="password" type="password" required autocomplete="current-password" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30">
                 @error('password')<p class="mt-2 text-sm text-red-300">{{ $message }}</p>@enderror
             </div>
+            <div>
+                @if ($recaptchaSiteKey !== '')
+                    <div class="g-recaptcha" data-sitekey="{{ $recaptchaSiteKey }}"></div>
+                @else
+                    <p class="rounded-md border border-amber-700 bg-amber-950/50 p-3 text-sm text-amber-200" role="alert">
+                        Sign-in verification is not configured. Please contact an administrator.
+                    </p>
+                @endif
+                @error('g-recaptcha-response')<p class="mt-2 text-sm text-red-300" role="alert">{{ $message }}</p>@enderror
+            </div>
             <label class="flex items-center gap-2 text-sm text-zinc-300"><input name="remember" type="checkbox" value="1" class="rounded border-zinc-700 bg-zinc-950 text-cyan-400 focus:ring-cyan-400">Remember this device</label>
             <button type="submit" class="w-full rounded-md bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-cyan-300">Sign in</button>
         </form>
     </section>
+
+    @if ($recaptchaSiteKey !== '')
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    @endif
 </x-layouts.auth>

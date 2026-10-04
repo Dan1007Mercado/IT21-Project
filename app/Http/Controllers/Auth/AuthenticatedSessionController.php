@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Security\AuthActivityLogger;
 use App\Services\Security\LoginProtectionService;
+use App\Services\Security\RecaptchaVerifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,15 +17,30 @@ class AuthenticatedSessionController extends Controller
 {
     public function create(): View
     {
-        return view('auth.login');
+        return view('auth.login', [
+            'recaptchaSiteKey' => trim((string) config('services.recaptcha.site_key')),
+        ]);
     }
 
-    public function store(Request $request, AuthActivityLogger $logger, LoginProtectionService $loginProtectionService): RedirectResponse
-    {
+    public function store(
+        Request $request,
+        AuthActivityLogger $logger,
+        LoginProtectionService $loginProtectionService,
+        RecaptchaVerifier $recaptchaVerifier,
+    ): RedirectResponse {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'g-recaptcha-response' => ['required', 'string', 'max:4096'],
+        ], [
+            'g-recaptcha-response.required' => 'Please complete the reCAPTCHA challenge.',
         ]);
+
+        if (! $recaptchaVerifier->verify($credentials['g-recaptcha-response'])) {
+            throw ValidationException::withMessages([
+                'g-recaptcha-response' => 'reCAPTCHA verification failed. Please try again.',
+            ]);
+        }
 
         $user = User::query()->where('email', $credentials['email'])->first();
 

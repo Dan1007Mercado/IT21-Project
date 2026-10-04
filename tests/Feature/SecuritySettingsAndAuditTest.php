@@ -7,6 +7,7 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class SecuritySettingsAndAuditTest extends TestCase
@@ -46,6 +47,11 @@ class SecuritySettingsAndAuditTest extends TestCase
 
     public function test_repeated_failed_login_attempts_trigger_ip_block_and_audit_record(): void
     {
+        config(['services.recaptcha.secret_key' => 'test-secret-key']);
+        Http::fake([
+            'https://www.google.com/recaptcha/api/siteverify' => Http::response(['success' => true]),
+        ]);
+
         $admin = User::factory()->administrator()->create();
         $user = User::factory()->create([
             'email' => 'blocked-user@intsec.test',
@@ -65,6 +71,7 @@ class SecuritySettingsAndAuditTest extends TestCase
             ->post('/login', [
                 'email' => $user->email,
                 'password' => 'wrong-password',
+                'g-recaptcha-response' => 'first-valid-response-token',
             ]);
 
         $request->assertSessionHasErrors('email');
@@ -73,6 +80,7 @@ class SecuritySettingsAndAuditTest extends TestCase
             ->post('/login', [
                 'email' => $user->email,
                 'password' => 'wrong-password',
+                'g-recaptcha-response' => 'second-valid-response-token',
             ]);
 
         $this->assertDatabaseHas('blocked_ips', [

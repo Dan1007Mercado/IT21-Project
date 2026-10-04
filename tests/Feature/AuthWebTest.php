@@ -9,21 +9,36 @@ use App\Models\SecurityAlert;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AuthWebTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'services.recaptcha.site_key' => 'test-site-key',
+            'services.recaptcha.secret_key' => 'test-secret-key',
+        ]);
+    }
+
     public function test_login_page_is_available(): void
     {
         $this->get('/login')
             ->assertOk()
-            ->assertSee('Sign in');
+            ->assertSee('Sign in')
+            ->assertSee('test-site-key')
+            ->assertDontSee('test-secret-key');
     }
 
     public function test_user_can_login_and_authentication_activity_is_logged(): void
     {
+        $this->fakeSuccessfulRecaptcha();
+
         $user = User::factory()->create([
             'email' => 'user@intsec.test',
             'password' => Hash::make('password'),
@@ -32,6 +47,7 @@ class AuthWebTest extends TestCase
         $this->post('/login', [
             'email' => 'user@intsec.test',
             'password' => 'password',
+            'g-recaptcha-response' => 'valid-response-token',
         ])->assertRedirect('/dashboard');
 
         $this->assertAuthenticatedAs($user);
@@ -43,10 +59,16 @@ class AuthWebTest extends TestCase
             'status' => 'successful',
             'failure_reason' => null,
         ]);
+
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://www.google.com/recaptcha/api/siteverify'
+            && $request['secret'] === 'test-secret-key'
+            && $request['response'] === 'valid-response-token');
     }
 
     public function test_failed_login_is_logged_without_authenticating_user(): void
     {
+        $this->fakeSuccessfulRecaptcha();
+
         $user = User::factory()->create([
             'email' => 'user@intsec.test',
             'password' => Hash::make('password'),
@@ -55,6 +77,7 @@ class AuthWebTest extends TestCase
         $this->post('/login', [
             'email' => 'user@intsec.test',
             'password' => 'wrong-password',
+            'g-recaptcha-response' => 'valid-response-token',
         ])->assertSessionHasErrors('email');
 
         $this->assertGuest();
@@ -70,6 +93,8 @@ class AuthWebTest extends TestCase
 
     public function test_inactive_user_cannot_login(): void
     {
+        $this->fakeSuccessfulRecaptcha();
+
         $user = User::factory()->inactive()->create([
             'email' => 'disabled@intsec.test',
             'password' => Hash::make('password'),
@@ -78,6 +103,7 @@ class AuthWebTest extends TestCase
         $this->post('/login', [
             'email' => 'disabled@intsec.test',
             'password' => 'password',
+            'g-recaptcha-response' => 'valid-response-token',
         ])->assertSessionHasErrors('email');
 
         $this->assertGuest();
@@ -87,6 +113,86 @@ class AuthWebTest extends TestCase
             'status' => 'failed',
             'failure_reason' => 'account_disabled',
         ]);
+    }
+
+    public function test_login_requires_a_recaptcha_response_before_authentication(): void
+    {
+        User::factory()->create([
+            'email' => 'user@intsec.test',
+            'password' => Hash::make('password'),
+        ]);
+
+        $this->post('/login', [
+            'email' => 'user@intsec.test',
+            'password' => 'password',
+        ])->assertSessionHasErrors('g-recaptcha-response');
+
+        $this->assertGuest();
+        $this->assertDatabaseCount('authentication_logs', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_invalid_recaptcha_response_rejects_valid_credentials(): void
+    {
+        Http::fake([
+            'https://www.google.com/recaptcha/api/siteverify' => Http::response([
+                'success' => false,
+                'error-codes' => ['invalid-input-response'],
+            ]),
+        ]);
+
+        User::factory()->create([
+            'email' => 'user@intsec.test',
+            'password' => Hash::make('password'),
+        ]);
+
+        $this->post('/login', [
+            'email' => 'user@intsec.test',
+            'password' => 'password',
+            'g-recaptcha-response' => 'invalid-response-token',
+        ])->assertSessionHasErrors('g-recaptcha-response');
+
+        $this->assertGuest();
+        $this->assertDatabaseCount('authentication_logs', 0);
+    }
+
+    public function test_recaptcha_service_failure_is_fail_closed(): void
+    {
+        Http::fake([
+            'https://www.google.com/recaptcha/api/siteverify' => Http::response([], 503),
+        ]);
+
+        User::factory()->create([
+            'email' => 'user@intsec.test',
+            'password' => Hash::make('password'),
+        ]);
+
+        $this->post('/login', [
+            'email' => 'user@intsec.test',
+            'password' => 'password',
+            'g-recaptcha-response' => 'response-token',
+        ])->assertSessionHasErrors('g-recaptcha-response');
+
+        $this->assertGuest();
+    }
+
+    public function test_missing_recaptcha_configuration_is_fail_closed_without_an_outbound_request(): void
+    {
+        config(['services.recaptcha.secret_key' => null]);
+
+        User::factory()->create([
+            'email' => 'user@intsec.test',
+            'password' => Hash::make('password'),
+        ]);
+
+        $this->post('/login', [
+            'email' => 'user@intsec.test',
+            'password' => 'password',
+            'g-recaptcha-response' => 'response-token',
+        ])->assertSessionHasErrors('g-recaptcha-response');
+
+        $this->assertGuest();
+        Http::assertNothingSent();
     }
 
     public function test_authenticated_user_can_view_dashboard_and_monitoring_pages(): void
@@ -237,5 +343,12 @@ class AuthWebTest extends TestCase
         $this->actingAs($admin)->get('/admin')
             ->assertOk()
             ->assertSee('Security operations workspace');
+    }
+
+    private function fakeSuccessfulRecaptcha(): void
+    {
+        Http::fake([
+            'https://www.google.com/recaptcha/api/siteverify' => Http::response(['success' => true]),
+        ]);
     }
 }

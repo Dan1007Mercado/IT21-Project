@@ -132,7 +132,7 @@ class DatabaseSeeder extends Seeder
             RequestActivity::query()->updateOrCreate([
                 'request_id' => 'demo-location-'.($index + 1),
             ], [
-                'source' => 'intsec',
+                'source' => 'demo',
                 'user_id' => $admin->id,
                 'ip_address' => $location['ip_address'],
                 'ip_type' => 'public',
@@ -151,7 +151,7 @@ class DatabaseSeeder extends Seeder
                 'occurred_at' => now()->subHours($index + 1),
             ]);
 
-            AuthenticationLog::factory()->create([
+c            AuthenticationLog::factory()->create([
                 'user_id' => $admin->id,
                 'attempted_identity' => 'demo.public.ip'.($index + 1).'@intsec.test',
                 'ip_address' => $location['ip_address'],
