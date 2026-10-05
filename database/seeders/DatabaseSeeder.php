@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\AuthenticationLog;
 use App\Models\IpIntelligence;
 use App\Models\RequestActivity;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -30,7 +31,7 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($defaults as $key => $value) {
-            \App\Models\SystemSetting::query()->updateOrCreate([
+            SystemSetting::query()->updateOrCreate([
                 'key' => $key,
             ], [
                 'value' => (string) $value,
@@ -47,6 +48,15 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
+        $admin = User::query()->updateOrCreate([
+            'email' => 'lightangel803@gmail.com',
+        ], [
+            'name' => 'INTSEC Administrator',
+            'password' => Hash::make('password'),
+            'role' => 'administrator',
+            'is_active' => true,
+        ]);
+
         $user = User::query()->updateOrCreate([
             'email' => 'user@intsec.test',
         ], [
@@ -56,7 +66,7 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        User::factory(8)->create();
+        User::factory(8)->withoutMfa()->create();
 
         $demoLocations = [
             [
@@ -151,7 +161,7 @@ class DatabaseSeeder extends Seeder
                 'occurred_at' => now()->subHours($index + 1),
             ]);
 
-c            AuthenticationLog::factory()->create([
+            AuthenticationLog::factory()->create([
                 'user_id' => $admin->id,
                 'attempted_identity' => 'demo.public.ip'.($index + 1).'@intsec.test',
                 'ip_address' => $location['ip_address'],

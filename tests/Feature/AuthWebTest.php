@@ -48,14 +48,14 @@ class AuthWebTest extends TestCase
             'email' => 'user@intsec.test',
             'password' => 'password',
             'g-recaptcha-response' => 'valid-response-token',
-        ])->assertRedirect('/dashboard');
+        ])->assertRedirect('/mfa/challenge');
 
         $this->assertAuthenticatedAs($user);
 
         $this->assertDatabaseHas('authentication_logs', [
             'user_id' => $user->id,
             'attempted_identity' => 'user@intsec.test',
-            'action' => 'login',
+            'action' => 'login_first_factor',
             'status' => 'successful',
             'failure_reason' => null,
         ]);
@@ -300,15 +300,20 @@ class AuthWebTest extends TestCase
         $this->actingAs($user)->put('/profile', [
             'name' => 'Updated User',
             'email' => 'updated@intsec.test',
-            'password' => 'new-password',
-            'password_confirmation' => 'new-password',
+            'current_password' => 'password',
+        ])->assertRedirect();
+
+        $this->actingAs($user)->put('/profile/password', [
+            'current_password' => 'password',
+            'password' => 'New-password-123',
+            'password_confirmation' => 'New-password-123',
         ])->assertRedirect();
 
         $user->refresh();
 
         $this->assertSame('Updated User', $user->name);
         $this->assertSame('updated@intsec.test', $user->email);
-        $this->assertTrue(Hash::check('new-password', $user->password));
+        $this->assertTrue(Hash::check('New-password-123', $user->password));
     }
 
     public function test_logout_records_activity_and_ends_session(): void

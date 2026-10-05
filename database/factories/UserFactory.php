@@ -32,6 +32,10 @@ class UserFactory extends Factory
             'role' => 'standard_user',
             'is_active' => true,
             'remember_token' => Str::random(10),
+            'totp_secret' => 'JBSWY3DPEHPK3PXP',
+            'totp_confirmed_at' => now(),
+            'mfa_enabled_at' => now(),
+            'recovery_codes_confirmed_at' => now(),
         ];
     }
 
@@ -56,6 +60,17 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
+        ]);
+    }
+
+    public function withoutMfa(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'totp_secret' => null,
+            'totp_confirmed_at' => null,
+            'mfa_enabled_at' => null,
+            'recovery_codes_confirmed_at' => null,
+            'last_totp_timestep' => null,
         ]);
     }
 }

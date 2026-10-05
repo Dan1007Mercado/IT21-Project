@@ -35,6 +35,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'totp_secret',
+        'pending_totp_secret',
     ];
 
     /**
@@ -48,6 +50,12 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'totp_secret' => 'encrypted',
+            'pending_totp_secret' => 'encrypted',
+            'totp_confirmed_at' => 'datetime',
+            'mfa_enabled_at' => 'datetime',
+            'recovery_codes_confirmed_at' => 'datetime',
+            'last_totp_timestep' => 'integer',
         ];
     }
 
@@ -64,6 +72,24 @@ class User extends Authenticatable
     public function incidents(): HasMany
     {
         return $this->hasMany(Incident::class);
+    }
+
+    public function mfaOtpChallenges(): HasMany
+    {
+        return $this->hasMany(MfaOtpChallenge::class);
+    }
+
+    public function recoveryCodes(): HasMany
+    {
+        return $this->hasMany(UserRecoveryCode::class);
+    }
+
+    public function hasMfaConfigured(): bool
+    {
+        return $this->mfa_enabled_at !== null
+            && $this->totp_confirmed_at !== null
+            && $this->recovery_codes_confirmed_at !== null
+            && filled($this->totp_secret);
     }
 
     public function assignedIncidents(): HasMany

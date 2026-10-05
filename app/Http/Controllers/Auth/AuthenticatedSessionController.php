@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Security\AuthActivityLogger;
 use App\Services\Security\LoginProtectionService;
+use App\Services\Security\MfaSecurityService;
+use App\Services\Security\MfaSessionService;
 use App\Services\Security\RecaptchaVerifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +29,8 @@ class AuthenticatedSessionController extends Controller
         AuthActivityLogger $logger,
         LoginProtectionService $loginProtectionService,
         RecaptchaVerifier $recaptchaVerifier,
+        MfaSessionService $mfaSession,
+        MfaSecurityService $mfaSecurity,
     ): RedirectResponse {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
@@ -70,9 +74,16 @@ class AuthenticatedSessionController extends Controller
         /** @var User $authenticatedUser */
         $authenticatedUser = Auth::user();
 
-        $logger->record($request, 'login', 'successful', $authenticatedUser, $credentials['email']);
+        $mfaSession->reset($request);
+        $logger->record($request, 'login_first_factor', 'successful', $authenticatedUser, $credentials['email']);
 
-        return redirect()->intended(route('dashboard'));
+        if (! $authenticatedUser->hasMfaConfigured()) {
+            $mfaSecurity->record($request, $authenticatedUser, '2FA_ENROLLMENT_STARTED', 'Mandatory MFA enrollment started');
+        }
+
+        return redirect()->route(
+            $authenticatedUser->hasMfaConfigured() ? 'mfa.challenge.show' : 'mfa.enrollment.show'
+        );
     }
 
     public function destroy(Request $request, AuthActivityLogger $logger): RedirectResponse
