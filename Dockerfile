@@ -1,8 +1,3 @@
-# ============================================================
-# INTSEC - Laravel 12 / Render / Clever Cloud
-# PHP 8.3 + Apache + Vite + Reverb-compatible runtime
-# ============================================================
-
 FROM node:20-bookworm-slim AS frontend
 
 WORKDIR /app
@@ -10,9 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY resources ./resources
-COPY public ./public
-COPY vite.config.js ./
+COPY . .
 
 ARG VITE_REVERB_APP_KEY
 ARG VITE_REVERB_HOST
@@ -20,93 +13,87 @@ ARG VITE_REVERB_PORT=443
 ARG VITE_REVERB_SCHEME=https
 ARG VITE_APP_NAME=INTSEC
 
-ENV VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY}
-ENV VITE_REVERB_HOST=${VITE_REVERB_HOST}
-ENV VITE_REVERB_PORT=${VITE_REVERB_PORT}
-ENV VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
-ENV VITE_APP_NAME=${VITE_APP_NAME}
+ENV VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY} \
+    VITE_REVERB_HOST=${VITE_REVERB_HOST} \
+    VITE_REVERB_PORT=${VITE_REVERB_PORT} \
+    VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME} \
+    VITE_APP_NAME=${VITE_APP_NAME}
 
-RUN npm run build
+RUN npm run build \
+    && test -f public/build/manifest.json \
+    && test -d public/build/assets
 
 
-FROM php:8.3-apache-bookworm
+FROM php:8.3-apache-bookworm AS runtime
 
 ENV APP_ENV=production \
     APP_DEBUG=false \
     LOG_CHANNEL=stderr \
+    APACHE_DOCUMENT_ROOT=/var/www/html/public \
     PORT=10000
 
 WORKDIR /var/www/html
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    unzip \
-    curl \
-    ca-certificates \
-    libcurl4-openssl-dev \
-    libicu-dev \
-    libzip-dev \
-    libpng-dev \
-    libjpeg62-turbo-dev \
-    libfreetype6-dev \
-    libonig-dev \
-    libxml2-dev \
-    && docker-php-ext-configure gd \
-        --with-freetype \
-        --with-jpeg \
-    && docker-php-ext-install -j$(nproc) \
-        pdo_mysql \
-        mbstring \
-        bcmath \
-        intl \
-        zip \
-        gd \
-        pcntl \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
         curl \
+        git \
+        libcurl4-openssl-dev \
+        libfreetype6-dev \
+        libicu-dev \
+        libjpeg62-turbo-dev \
+        libonig-dev \
+        libpng-dev \
+        libxml2-dev \
+        libzip-dev \
+        unzip \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" \
+        bcmath \
+        curl \
+        gd \
+        intl \
+        mbstring \
         opcache \
+        pcntl \
+        pdo_mysql \
+        zip \
+    && a2enmod expires headers rewrite \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN a2enmod rewrite headers expires
-
-ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
-
-RUN sed -ri \
-    -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
-    /etc/apache2/sites-available/*.conf \
-    /etc/apache2/apache2.conf \
-    /etc/apache2/conf-available/*.conf
-
-RUN printf '%s\n' \
-    '<Directory /var/www/html/public>' \
-    '    Options -Indexes +FollowSymLinks' \
-    '    AllowOverride All' \
-    '    Require all granted' \
-    '</Directory>' \
-    > /etc/apache2/conf-available/laravel.conf \
-    && a2enconf laravel
-
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
 COPY . .
 
 RUN composer install \
-    --no-dev \
-    --prefer-dist \
-    --no-interaction \
-    --no-progress \
-    --optimize-autoloader
+        --no-dev \
+        --prefer-dist \
+        --no-interaction \
+        --no-progress \
+        --optimize-autoloader \
+    && rm -rf public/build public/hot
 
 COPY --from=frontend /app/public/build ./public/build
+COPY docker/apache/ports.conf /etc/apache2/ports.conf
+COPY docker/apache/000-default.conf /etc/apache2/sites-available/000-default.conf
+COPY docker/apache/servername.conf /etc/apache2/conf-available/servername.conf
+COPY docker/start.sh /usr/local/bin/intsec-start
 
-RUN mkdir -p \
-        storage/framework/cache \
+RUN a2enconf servername \
+    && mkdir -p \
+        bootstrap/cache \
+        storage/app/public \
+        storage/framework/cache/data \
         storage/framework/sessions \
         storage/framework/views \
         storage/logs \
-        bootstrap/cache \
-    && chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    && ln -sfn ../storage/app/public public/storage \
+    && chown -R www-data:www-data bootstrap/cache storage \
+    && chmod -R 775 bootstrap/cache storage \
+    && chmod 755 /usr/local/bin/intsec-start \
+    && test -f public/build/manifest.json \
+    && test -d public/build/assets
 
 RUN printf '%s\n' \
     'memory_limit=256M' \
@@ -123,15 +110,4 @@ RUN printf '%s\n' \
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "\
-    set -e; \
-    sed -i \"s/Listen 80/Listen ${PORT:-10000}/\" /etc/apache2/ports.conf; \
-    sed -i \"s/:80>/:${PORT:-10000}>/\" /etc/apache2/sites-available/000-default.conf; \
-    php artisan optimize:clear; \
-    php artisan migrate --force; \
-    php artisan storage:link 2>/dev/null || true; \
-    php artisan config:cache; \
-    php artisan route:cache; \
-    php artisan view:cache; \
-    exec apache2-foreground \
-"]
+ENTRYPOINT ["/usr/local/bin/intsec-start"]

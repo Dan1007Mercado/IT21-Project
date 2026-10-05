@@ -25,6 +25,12 @@ class CaptureRequestActivity
 
     public function handle(Request $request, Closure $next): Response
     {
+        // Platform probes and the browser favicon must never enter the
+        // telemetry, enrichment, detection, or broadcast pipeline.
+        if ($request->is('up') || $request->is('favicon.ico')) {
+            return $next($request);
+        }
+
         if ($this->isExcluded($request)) {
             return $next($request);
         }

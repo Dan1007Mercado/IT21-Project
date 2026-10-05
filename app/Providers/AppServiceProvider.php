@@ -11,11 +11,8 @@ use App\Models\SecurityAlert;
 use App\Models\SecurityEvent;
 use App\Models\SystemSetting;
 use App\Observers\BroadcastSecurityState;
-use App\Services\Security\IntsecSettings;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
-use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -47,18 +44,9 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        if ($this->app->runningUnitTests()) {
-            return;
-        }
-
-        try {
-            if (Schema::hasTable('system_settings')) {
-                IntsecSettings::refreshConfig();
-            }
-        } catch (Throwable) {
-            // Settings are an optional runtime override. A temporarily
-            // unavailable database must not prevent Artisan or the app from
-            // booting with safe configuration defaults.
-        }
+        // Runtime security settings are resolved by IntsecSettings at the
+        // decision point. Do not contact the database during application
+        // boot: health checks and static/error responses must remain usable
+        // while the remote database is slow or temporarily unavailable.
     }
 }

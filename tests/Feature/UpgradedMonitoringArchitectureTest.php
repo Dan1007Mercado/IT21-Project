@@ -16,6 +16,7 @@ use App\Services\Security\RequestDetectionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class UpgradedMonitoringArchitectureTest extends TestCase
@@ -35,9 +36,18 @@ class UpgradedMonitoringArchitectureTest extends TestCase
 
     public function test_health_and_static_paths_are_excluded_from_request_telemetry(): void
     {
+        Http::fake();
+        Queue::fake();
+
         $this->get('/up')->assertOk();
         $this->get('/favicon.ico');
+
         $this->assertDatabaseCount('request_activities', 0);
+        $this->assertDatabaseCount('security_events', 0);
+        $this->assertDatabaseCount('security_alerts', 0);
+        $this->assertDatabaseCount('ip_intelligences', 0);
+        Queue::assertNothingPushed();
+        Http::assertNothingSent();
     }
 
     public function test_ip_classifier_distinguishes_network_types(): void

@@ -7,7 +7,10 @@
 
 node_modules
 vendor
+public/build
+public/hot
 
+storage/app/*
 storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
@@ -26,3 +29,5 @@ Thumbs.db
 .vscode
 
 tests
+
+database/*.sqlite
