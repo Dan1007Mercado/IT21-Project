@@ -1,6 +1,8 @@
-@props(['label', 'value', 'tone' => 'cyan', 'icon' => null])
-@php($tones = ['cyan' => 'text-cyan-300', 'emerald' => 'text-emerald-300', 'amber' => 'text-amber-300', 'red' => 'text-red-300', 'zinc' => 'text-zinc-100'])
-<div {{ $attributes->class('relative rounded-lg border border-zinc-800 bg-zinc-900/70 p-5') }}>
+@props(['label', 'value', 'tone' => 'cyan', 'icon' => null, 'context' => null, 'trend' => null])
+@php
+    $tones = ['cyan' => 'text-cyan-300', 'emerald' => 'text-emerald-300', 'amber' => 'text-amber-300', 'red' => 'text-red-300', 'zinc' => 'text-zinc-100'];
+@endphp
+<div {{ $attributes->class('ops-metric-card relative rounded-lg border border-zinc-800 bg-zinc-900/70 p-5') }}>
     @if ($icon)
         <span class="absolute right-4 top-4 rounded-lg border border-white/10 bg-white/5 p-2 {{ $tones[$tone] ?? $tones['cyan'] }}" aria-hidden="true">
             @switch($icon)
@@ -19,5 +21,13 @@
             @endswitch
         </span>
     @endif
-    <p class="metric-card-label text-xs uppercase tracking-[0.18em] text-zinc-500">{{ $label }}</p><p class="metric-card-value mt-2 text-3xl font-semibold {{ $tones[$tone] ?? $tones['cyan'] }}">{{ $value }}</p>{{ $slot }}
+    <p class="metric-card-label text-xs uppercase tracking-[0.18em] text-zinc-500">{{ $label }}</p>
+    <p class="metric-card-value mt-2 text-3xl font-semibold {{ $tones[$tone] ?? $tones['cyan'] }}">{{ $value }}</p>
+    @if ($context)
+        <p class="ops-metric-context">{{ $context }}</p>
+    @endif
+    @if ($trend)
+        <p class="ops-metric-trend" data-direction="{{ $trend['direction'] ?? 'flat' }}">{{ $trend['label'] ?? '' }}</p>
+    @endif
+    {{ $slot }}
 </div>

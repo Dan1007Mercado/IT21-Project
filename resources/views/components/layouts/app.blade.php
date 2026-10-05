@@ -12,6 +12,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#06111d">
     <title>{{ $title }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,11 +24,12 @@
     {{ $head ?? '' }}
 </head>
 <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased" data-realtime-entities="{{ $realtimeEntities }}" data-realtime-source="{{ $realtimeSource }}">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="app-shell min-h-screen lg:pl-64">
         <x-navigation.sidebar />
         <x-navigation.mobile-navigation />
 
-        <main @class([
+        <main id="main-content" tabindex="-1" @class([
             'w-full',
             'px-4 py-6 sm:px-6 lg:px-8' => ! $flush,
             'mx-auto max-w-[1680px]' => $wide && ! $flush,
@@ -42,11 +44,6 @@
         <p id="intsec-realtime-message" class="text-sm text-zinc-200">New security activity is available.</p>
         <button id="intsec-realtime-refresh" type="button" class="mt-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">Refresh current view</button>
     </div>
-    @if (auth()->user()?->isAdministrator())
-        <div id="intsec-realtime-status" class="fixed bottom-5 left-5 z-40 rounded-full border border-amber-500/40 bg-zinc-900/95 px-3 py-1.5 text-xs text-amber-200 shadow-lg" role="status" aria-live="polite">
-            Connecting…
-        </div>
-    @endif
     {{ $scripts ?? '' }}
 </body>
 </html>

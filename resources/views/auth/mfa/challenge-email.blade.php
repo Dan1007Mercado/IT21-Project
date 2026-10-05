@@ -1,5 +1,5 @@
 <x-layouts.auth title="Email verification - INTSEC">
-    <section class="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
+    <section class="auth-flow auth-flow--compact">
         <x-intsec-brand />
         <h1 class="mt-8 text-2xl font-semibold text-white">Email verification</h1>
         <p class="mt-2 text-sm text-zinc-400">Send a fallback verification code to {{ $maskedEmail }}.</p>

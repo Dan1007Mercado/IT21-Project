@@ -1,45 +1,12 @@
-<x-layouts.app title="Audit Logs - INTSEC">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-            <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Administration</p>
-            <h1 class="mt-2 text-3xl font-semibold text-white">Audit logs</h1>
-        </div>
-        <a href="{{ route('admin.settings') }}" class="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:border-cyan-500/40">System settings</a>
-    </div>
-
-    <form method="GET" class="mt-6 flex gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4"><input name="search" value="{{ request('search') }}" placeholder="Search action, actor, resource, or IP" class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"><button class="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-zinc-950">Search</button></form>
-    <section class="mt-6 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900">
-        <div class="overflow-x-auto">
-            <table class="w-full min-w-[920px] text-left text-sm">
-                <thead class="border-b border-zinc-800 text-xs uppercase tracking-[0.14em] text-zinc-500">
-                    <tr>
-                        <th class="px-4 py-3">Action</th>
-                        <th class="px-4 py-3">Performed by</th>
-                        <th class="px-4 py-3">Resource</th>
-                        <th class="px-4 py-3">IP</th>
-                        <th class="px-4 py-3">Occurred</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-800">
-                    @forelse ($logs as $log)
-                        <tr>
-                            <td class="px-4 py-3 text-zinc-200">{{ str_replace('_', ' ', ucfirst($log->action)) }}</td>
-                            <td class="px-4 py-3 text-zinc-300">{{ $log->actor?->name ?? 'System' }}</td>
-                            <td class="px-4 py-3 text-zinc-400">{{ $log->resource_type ?? 'n/a' }}</td>
-                            <td class="px-4 py-3 text-zinc-500">{{ $log->ip_address ?? 'Unknown' }}</td>
-                            <td class="px-4 py-3 text-zinc-500">{{ $log->occurred_at?->format('M j, Y H:i:s') }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="px-4 py-8 text-center text-zinc-400">No audit records are available.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <div class="mt-6">
-        {{ $logs->links() }}
+<x-layouts.app title="Audit logs - INTSEC">
+    <div class="ops-page">
+        <x-ui.page-header kicker="Administration" title="Audit logs" description="Accountability records for administrative and security-sensitive operations.">
+            <x-slot:context><span class="ops-context-pill">Immutable operational history</span></x-slot:context>
+            <x-slot:actions><a href="{{ route('admin.settings') }}" class="ops-button ops-button--quiet">System settings</a></x-slot:actions>
+        </x-ui.page-header>
+        <form method="GET" class="ops-filter" aria-label="Search audit logs"><div class="ops-filter-heading"><div><h2 class="ops-filter-title">Audit search</h2><p class="ops-filter-state">Find an action, actor, resource, or originating IP.</p></div></div><div class="ops-filter-grid"><label class="ops-field ops-field--search"><span class="ops-label">Search records</span><input name="search" value="{{ request('search') }}" placeholder="Action, actor, resource, or IP"></label><div class="ops-filter-actions"><a class="ops-button ops-button--quiet" href="{{ route('admin.audit-logs') }}">Clear</a><button class="ops-button ops-button--secondary">Search</button></div></div></form>
+        <section class="ops-table-shell" aria-labelledby="audit-table-title"><div class="ops-panel-header"><div><h2 id="audit-table-title" class="ops-panel-title">Recorded actions</h2><p class="ops-panel-description">Most recent security and administrative activity.</p></div></div><div class="ops-table-scroll"><table class="ops-table ops-table--wide"><caption>Administrative audit records</caption><thead><tr><th>Action</th><th>Performed by</th><th>Resource</th><th>Origin IP</th><th>Occurred</th></tr></thead><tbody>
+            @forelse ($logs as $log)<tr><td><span class="ops-cell-primary">{{ str_replace('_', ' ', ucfirst($log->action)) }}</span></td><td>{{ $log->actor?->name ?? 'System' }}</td><td><span class="ops-technical ops-wrap-anywhere">{{ $log->resource_type ?? 'Not recorded' }}</span></td><td><span class="ops-technical ops-wrap-anywhere">{{ $log->ip_address ?? 'Unknown' }}</span></td><td><time datetime="{{ $log->occurred_at?->toIso8601String() }}">{{ $log->occurred_at?->format('M j, Y H:i:s') }}</time></td></tr>@empty<tr><td colspan="5"><x-ui.empty-state title="No audit records found" description="No records match the current search." /></td></tr>@endforelse
+        </tbody></table></div><div class="ops-pagination">{{ $logs->withQueryString()->links() }}</div></section>
     </div>
 </x-layouts.app>

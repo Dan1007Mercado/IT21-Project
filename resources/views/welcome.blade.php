@@ -1,45 +1,54 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ config('app.name', 'INTSEC') }}</title>
-        <x-app-assets />
-    </head>
-    <body class="bg-zinc-950 text-zinc-100">
-        <main class="min-h-screen">
-            <section class="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
-                <div class="max-w-3xl">
-                    <x-intsec-brand />
-                    <p class="text-sm font-semibold uppercase tracking-widest text-cyan-300">Application intrusion monitoring</p>
-                    <h1 class="mt-5 text-4xl font-semibold tracking-normal text-white md:text-6xl">Security operations, in one place.</h1>
-                    <p class="mt-6 max-w-2xl text-lg leading-8 text-zinc-300">
-                        Integrated authentication monitoring, account visibility, and incident response foundations for Laravel applications.
-                    </p>
-                    <div class="mt-8 flex flex-wrap gap-3">
-                        @auth
-                            <a href="{{ route('dashboard') }}" class="rounded-md bg-cyan-400 px-5 py-3 text-sm font-semibold text-zinc-950 hover:bg-cyan-300">Open dashboard</a>
-                        @else
-                            <a href="{{ route('login') }}" class="rounded-md bg-cyan-400 px-5 py-3 text-sm font-semibold text-zinc-950 hover:bg-cyan-300">Sign in</a>
-                        @endauth
-                    </div>
-                </div>
-                <div class="mt-14 grid gap-4 md:grid-cols-3">
-                    <div class="rounded-lg border border-zinc-800 bg-zinc-900/70 p-5">
-                        <h2 class="font-semibold text-white">Authentication logs</h2>
-                        <p class="mt-2 text-sm leading-6 text-zinc-400">Successful, failed, and logout activity is persisted with request context.</p>
-                    </div>
-                    <div class="rounded-lg border border-zinc-800 bg-zinc-900/70 p-5">
-                        <h2 class="font-semibold text-white">Role-aware access</h2>
-                        <p class="mt-2 text-sm leading-6 text-zinc-400">Administrator routes are protected server-side and unavailable to standard users.</p>
-                    </div>
-                    <div class="rounded-lg border border-zinc-800 bg-zinc-900/70 p-5">
-                        <h2 class="font-semibold text-white">User workspace</h2>
-                        <p class="mt-2 text-sm leading-6 text-zinc-400">Users can view recent login activity and manage basic account settings.</p>
-                    </div>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#020a11">
+    <meta name="description" content="INTSEC application intrusion monitoring and incident response platform.">
+    <title>{{ config('app.name', 'INTSEC') }} — Security Operations Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet">
+    <x-app-assets />
+</head>
+<body class="landing-page">
+    <div class="landing-shell">
+        <header class="landing-header">
+            <a href="{{ url('/') }}" class="landing-brand" aria-label="INTSEC home">
+                <img src="{{ Vite::asset('resources/assets/INTSEC.png') }}" alt="INTSEC shield" width="56" height="56">
+                <span class="landing-wordmark">INT<span>SEC</span></span>
+            </a>
+            <div class="landing-header-actions">
+                <span class="landing-operational">Security operations ready</span>
+                @auth
+                    <a href="{{ route('dashboard') }}" class="landing-access">Open dashboard</a>
+                @else
+                    <a href="{{ route('login') }}" class="landing-access">Sign in</a>
+                @endauth
+            </div>
+        </header>
+
+        <main class="landing-main">
+            <section class="landing-hero" aria-labelledby="landing-title">
+                <p class="landing-eyebrow">Integrated intrusion monitoring</p>
+                <h1 id="landing-title" class="landing-title">Detect. Monitor. <span>Respond.</span></h1>
+                <p class="landing-description">A unified security operations platform for monitoring application activity, investigating threats, and coordinating incident response from one trusted workspace.</p>
+                <div class="landing-actions">
+                    @auth
+                        <a href="{{ route('dashboard') }}" class="landing-primary-action">Enter command center <x-auth.icon name="arrow" /></a>
+                    @else
+                        <a href="{{ route('login') }}" class="landing-primary-action">Access INTSEC <x-auth.icon name="arrow" /></a>
+                    @endauth
+                    <a href="#capabilities" class="landing-secondary-action">Explore capabilities</a>
                 </div>
             </section>
         </main>
 
-    </body>
+        <section id="capabilities" class="landing-capabilities" aria-label="Platform capabilities">
+            <article class="landing-capability"><x-auth.icon name="shield" /><div><strong>Threat monitoring</strong><span>Traceable, deterministic security detection</span></div></article>
+            <article class="landing-capability"><x-auth.icon name="chart" /><div><strong>Security intelligence</strong><span>Application activity and actionable context</span></div></article>
+            <article class="landing-capability"><x-auth.icon name="network" /><div><strong>Incident response</strong><span>Coordinated investigation and containment</span></div></article>
+        </section>
+    </div>
+</body>
 </html>

@@ -1,5 +1,5 @@
 <x-layouts.auth title="Set up authenticator - INTSEC">
-    <section class="w-full max-w-3xl rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl sm:p-8">
+    <section class="auth-flow">
         <x-intsec-brand />
         <p class="mt-8 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Mandatory security setup</p>
         <h1 class="mt-2 text-2xl font-semibold text-white">Set up authenticator app</h1>

@@ -1,5 +1,5 @@
 <x-layouts.auth title="Emergency recovery - INTSEC">
-    <section class="w-full max-w-xl rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
+    <section class="auth-flow auth-flow--medium">
         <x-intsec-brand />
         <h1 class="mt-8 text-2xl font-semibold text-white">Emergency recovery</h1>
         <p class="mt-2 text-sm text-zinc-400">Use this only if you cannot access your authenticator or verified email. Your password and reCAPTCHA must already have been accepted.</p>

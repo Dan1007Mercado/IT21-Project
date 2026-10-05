@@ -5,7 +5,7 @@
 
 <a href="{{ auth()->check() ? route('dashboard') : url('/') }}" class="{{ $class }}" aria-label="INTSEC home">
     <img
-        src="{{ asset('images/INTSEC.png') }}"
+        src="{{ Vite::asset('resources/assets/INTSEC.png') }}"
         alt="INTSEC"
         class="{{ $compact ? 'h-9 w-9' : 'h-11 w-11' }} rounded-md object-contain object-center"
     >

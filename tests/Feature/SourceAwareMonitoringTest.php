@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\AuthenticationLog;
+use App\Models\Incident;
 use App\Models\RequestActivity;
 use App\Models\SecurityAlert;
+use App\Models\SecurityEvent;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\Security\RequestDetectionService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Pagination\Paginator;
 use Tests\TestCase;
@@ -93,6 +96,98 @@ class SourceAwareMonitoringTest extends TestCase
             ->assertOk()->assertSee('/hotel-only')->assertDontSee('/intsec-only');
         $this->actingAs($admin)->get('/monitoring/intsec/login-activity')
             ->assertOk()->assertSee('intsec@example.test')->assertDontSee('hotel@example.test');
+    }
+
+    public function test_monitoring_overview_kpis_use_current_period_data_and_remain_source_isolated(): void
+    {
+        CarbonImmutable::setTestNow('2026-10-05 12:00:00');
+        $admin = User::factory()->administrator()->create();
+
+        RequestActivity::factory()->create([
+            'source' => 'hotel-booking', 'ip_address' => '2001:4860:4860::8888',
+            'path' => '/hotel-current-one', 'occurred_at' => now()->subHours(2),
+        ]);
+        RequestActivity::factory()->create([
+            'source' => 'hotel-booking', 'ip_address' => '8.8.8.8',
+            'path' => '/hotel-current-two', 'occurred_at' => now()->subHours(3),
+        ]);
+        RequestActivity::factory()->create([
+            'source' => 'hotel-booking', 'ip_address' => '1.1.1.1',
+            'path' => '/hotel-previous', 'occurred_at' => now()->subHours(30),
+        ]);
+        RequestActivity::factory()->count(4)->create([
+            'source' => 'intsec', 'path' => '/intsec-current', 'occurred_at' => now()->subHour(),
+        ]);
+
+        AuthenticationLog::factory()->create([
+            'source' => 'hotel-booking', 'action' => 'login', 'status' => 'successful',
+            'occurred_at' => now()->subHours(4),
+        ]);
+        AuthenticationLog::factory()->create([
+            'source' => 'hotel-booking', 'action' => 'login', 'status' => 'failed',
+            'occurred_at' => now()->subHours(5),
+        ]);
+        AuthenticationLog::factory()->create([
+            'source' => 'intsec', 'action' => 'login', 'status' => 'failed',
+            'occurred_at' => now()->subHours(2),
+        ]);
+
+        SecurityEvent::query()->create([
+            'title' => 'Hotel event only', 'source' => 'hotel-booking', 'event_type' => 'test',
+            'severity' => 'High', 'status' => 'new', 'occurred_at' => now()->subHour(),
+        ]);
+        SecurityEvent::query()->create([
+            'title' => 'INTSEC event only', 'source' => 'intsec', 'event_type' => 'test',
+            'severity' => 'Critical', 'status' => 'new', 'occurred_at' => now()->subHour(),
+        ]);
+        SecurityAlert::query()->create([
+            'alert_id' => 'ALT-2026-920001', 'source' => 'hotel-booking', 'title' => 'Hotel alert',
+            'alert_type' => 'test', 'severity' => 'Critical', 'status' => 'new', 'occurred_at' => now(),
+        ]);
+        Incident::query()->create([
+            'source' => 'hotel-booking', 'title' => 'Hotel incident', 'incident_type' => 'test',
+            'severity' => 'High', 'status' => 'open', 'event_count' => 1,
+            'first_detected_at' => now(), 'last_detected_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get('/monitoring/hotel-booking');
+        $metrics = collect($response->viewData('kpis'))->keyBy('label');
+
+        $response->assertOk()
+            ->assertSee('Hotel event only')
+            ->assertDontSee('INTSEC event only')
+            ->assertDontSee('/intsec-current');
+        $this->assertSame(2, $metrics['Requests']['value']);
+        $this->assertSame(100.0, $metrics['Requests']['trend']['percentage']);
+        $this->assertSame(2, $metrics['Unique IPs']['value']);
+        $this->assertSame(2, $metrics['Authentication attempts']['value']);
+        $this->assertSame(50.0, $metrics['Authentication attempts']['rate']);
+        $this->assertSame(1, $metrics['Security events']['value']);
+        $this->assertSame(1, $metrics['Open alerts']['value']);
+        $this->assertSame(1, $metrics['Open incidents']['value']);
+        $this->assertCount(24, $response->viewData('requestTrend'));
+
+        CarbonImmutable::setTestNow();
+    }
+
+    public function test_monitoring_overview_uses_neutral_comparisons_when_the_previous_period_is_zero(): void
+    {
+        CarbonImmutable::setTestNow('2026-10-05 12:00:00');
+        $admin = User::factory()->administrator()->create();
+        RequestActivity::factory()->create([
+            'source' => 'hotel-booking', 'occurred_at' => now()->subHour(),
+        ]);
+
+        $response = $this->actingAs($admin)->get('/monitoring/hotel-booking');
+        $metrics = collect($response->viewData('kpis'))->keyBy('label');
+
+        $response->assertOk();
+        $this->assertNull($metrics['Requests']['trend']['percentage']);
+        $this->assertSame('New activity vs previous 24h', $metrics['Requests']['trend']['label']);
+        $this->assertNull($metrics['Authentication attempts']['rate']);
+        $this->assertSame('No activity in either 24h period', $metrics['Authentication attempts']['trend']['label']);
+
+        CarbonImmutable::setTestNow();
     }
 
     public function test_detection_thresholds_and_alerts_are_isolated_by_source(): void

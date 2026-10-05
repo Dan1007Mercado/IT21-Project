@@ -11,7 +11,7 @@ enum MonitoringSource: string
     {
         return match ($this) {
             self::Intsec => 'INTSEC',
-            self::HotelBooking => 'Hotel',
+            self::HotelBooking => 'Hotel Booking',
         };
     }
 

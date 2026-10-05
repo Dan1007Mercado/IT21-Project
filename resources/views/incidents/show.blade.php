@@ -1,251 +1,74 @@
-<x-layouts.app title="Incident {{ $incident->incident_id }} - INTSEC">
-    <div class="space-y-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-                <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">{{ config('intsec.sources.'.$incident->source, $incident->source) }} · Incident overview</p>
-                <h1 class="mt-2 text-3xl font-semibold text-white">{{ $incident->title }}</h1>
-                <p class="mt-2 font-mono text-sm text-cyan-300">{{ $incident->incident_id }}</p>
-            </div>
-            <div class="flex gap-3">
-                <span class="inline-flex rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-200">{{ $incident->severity }}</span>
-                <span class="inline-flex rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200">{{ ucfirst(str_replace('_', ' ', $incident->status)) }}</span>
-            </div>
-        </div>
+<x-layouts.app title="Incident {{ $incident->incident_id }} - INTSEC" realtime-entities="incident,security_alert">
+    <div class="ops-page">
+        <x-ui.page-header kicker="Incident investigation" :title="$incident->title" :description="$incident->incident_id">
+            <x-slot:context><x-security.source-badge :source="$incident->source" /><x-security.severity-badge :severity="$incident->severity" /><x-security.status-badge :status="$incident->status" /></x-slot:context>
+            <x-slot:actions><a class="ops-button ops-button--quiet" href="{{ route('incidents.index') }}">Back to incidents</a></x-slot:actions>
+        </x-ui.page-header>
 
-        @if (session('status') === 'incident-created')
-            <div class="rounded-md border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-100">Incident created successfully.</div>
-        @endif
+        @if (session('status'))<div class="ops-banner ops-banner--success" role="status">Incident workflow updated successfully.</div>@endif
+        @if ($errors->any())<div class="ops-banner ops-banner--danger" role="alert"><div><strong>The update could not be saved.</strong><ul class="mt-2 list-disc pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div></div>@endif
 
-        <div class="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-            <div class="space-y-6">
-                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
-                    <h2 class="text-lg font-semibold text-white">Incident details</h2>
-                    <dl class="mt-4 grid gap-4 md:grid-cols-2">
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Type</dt>
-                            <dd class="mt-1 text-zinc-200">{{ ucfirst(str_replace('_', ' ', $incident->incident_type)) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Created</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->created_at?->format('Y-m-d H:i:s') ?? '—' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Last detected</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->last_detected_at?->format('Y-m-d H:i:s') ?? '—' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Assigned administrator</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->assignedAdministrator?->name ?? 'Unassigned' }}</dd>
-                        </div>
+        <div class="ops-split-layout">
+            <div class="ops-stack">
+                <section class="ops-panel ops-panel--padded" aria-labelledby="incident-evidence-title">
+                    <div class="ops-panel-header"><div><h2 id="incident-evidence-title" class="ops-panel-title">Incident evidence</h2><p class="ops-panel-description">Core case facts and originating detection context.</p></div></div>
+                    <dl class="ops-detail-grid">
+                        <div class="ops-detail-item"><dt>Type</dt><dd>{{ ucfirst(str_replace('_', ' ', $incident->incident_type)) }}</dd></div>
+                        <div class="ops-detail-item"><dt>Source IP</dt><dd class="ops-technical">{{ $incident->source_ip ?: 'Not recorded' }}</dd></div>
+                        <div class="ops-detail-item"><dt>IP policy decision</dt><dd>@if (($ipDecision ?? null) === 'blocked')<span class="ops-badge ops-badge--red">Blocked</span>@elseif (($ipDecision ?? null) === 'allowed')<span class="ops-badge ops-badge--green">Allowed</span>@else No matching rule @endif</dd></div>
+                        <div class="ops-detail-item"><dt>Target account</dt><dd>{{ $incident->user?->name ?? 'Not linked' }}</dd></div>
+                        <div class="ops-detail-item"><dt>Detection rule</dt><dd>{{ $incident->detection_rule ?: 'Not recorded' }}</dd></div>
+                        <div class="ops-detail-item"><dt>Related events</dt><dd>{{ $incident->event_count ?: 0 }}</dd></div>
+                        <div class="ops-detail-item"><dt>First detected</dt><dd>{{ $incident->first_detected_at?->format('Y-m-d H:i:s') ?? 'Not recorded' }}</dd></div>
+                        <div class="ops-detail-item"><dt>Last detected</dt><dd>{{ $incident->last_detected_at?->format('Y-m-d H:i:s') ?? 'Not recorded' }}</dd></div>
                     </dl>
-                    <div class="mt-6">
-                        <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">Description</h3>
-                        <p class="mt-3 whitespace-pre-wrap text-zinc-300">{{ $incident->description ?: 'No description provided.' }}</p>
-                    </div>
-                </div>
+                    <div class="ops-list-row"><div><p class="ops-list-title">Detection reason</p><p class="ops-list-meta ops-wrap-anywhere">{{ $incident->detection_reason ?: 'No detection reason recorded.' }}</p></div></div>
+                    <div class="ops-list-row"><div><p class="ops-list-title">Description</p><p class="ops-list-meta whitespace-pre-wrap ops-wrap-anywhere">{{ $incident->description ?: 'No description provided.' }}</p></div></div>
+                </section>
 
-                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
-                    <h2 class="text-lg font-semibold text-white">Incident update</h2>
-                    <form method="POST" action="{{ route('incidents.update', $incident) }}" class="mt-4 space-y-4">
-                        @csrf
-                        @method('PUT')
-                        <label class="block text-sm text-zinc-300">
-                            Title
-                            <input type="text" name="title" value="{{ $incident->title }}" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                        </label>
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <label class="block text-sm text-zinc-300">
-                                Type
-                                <input type="text" name="incident_type" value="{{ $incident->incident_type }}" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                            </label>
-                            <label class="block text-sm text-zinc-300">
-                                Source IP
-                                <input type="text" name="source_ip" value="{{ $incident->source_ip }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                            </label>
-                        </div>
-                        <label class="block text-sm text-zinc-300">
-                            Detection reason
-                            <input type="text" name="detection_reason" value="{{ $incident->detection_reason }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                        </label>
-                        <label class="block text-sm text-zinc-300">
-                            Description
-                            <textarea name="description" rows="4" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">{{ $incident->description }}</textarea>
-                        </label>
-                        <button type="submit" class="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/20">Save incident details</button>
-                    </form>
-                </div>
+                <section class="ops-panel ops-panel--padded" aria-labelledby="remarks-title">
+                    <div class="ops-panel-header"><div><h2 id="remarks-title" class="ops-panel-title">Investigation remarks</h2><p class="ops-panel-description">Analyst observations retained with author and time.</p></div></div>
+                    <div class="ops-list">@forelse ($incident->remarks as $remark)<article class="ops-list-row"><div><p class="ops-list-title">{{ $remark->author?->name ?? 'System' }}</p><p class="ops-list-meta whitespace-pre-wrap ops-wrap-anywhere">{{ $remark->remark }}</p></div><time class="ops-cell-meta" datetime="{{ $remark->created_at?->toIso8601String() }}">{{ $remark->created_at?->format('Y-m-d H:i:s') }}</time></article>@empty<x-ui.empty-state title="No investigation remarks" description="Add the first analyst observation below." />@endforelse</div>
+                    <form method="POST" action="{{ route('incidents.remarks.store', $incident) }}" class="ops-stack">@csrf<label class="ops-field"><span class="ops-label">Add investigation remark <span class="ops-required">required</span></span><textarea name="remark" rows="4" required></textarea></label><div><button class="ops-button ops-button--primary">Add remark</button></div></form>
+                </section>
 
-                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
-                    <h2 class="text-lg font-semibold text-white">Source and detection</h2>
-                    <dl class="mt-4 grid gap-4 md:grid-cols-2">
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Source IP</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->source_ip ?: '—' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">IP Management decision</dt>
-                            <dd class="mt-1 text-zinc-200">
-                                @if (($ipDecision ?? null) === 'blocked')
-                                    <span class="inline-flex rounded-full border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-200">Blocked</span>
-                                @elseif (($ipDecision ?? null) === 'allowed')
-                                    <span class="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-200">Allowed</span>
-                                @elseif ($incident->source_ip)
-                                    <span class="text-xs text-zinc-400">No matching rule</span>
-                                @else
-                                    —
-                                @endif
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Target account</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->user?->name ?? '—' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Detection reason</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->detection_reason ?: '—' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Detection rule</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->detection_rule ?: '—' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">Related events</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->event_count ?: 0 }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-[0.2em] text-zinc-500">First detected</dt>
-                            <dd class="mt-1 text-zinc-200">{{ $incident->first_detected_at?->format('Y-m-d H:i:s') ?? '—' }}</dd>
-                        </div>
-                    </dl>
-                </div>
+                <section class="ops-panel ops-panel--padded" aria-labelledby="details-title">
+                    <div class="ops-panel-header"><div><h2 id="details-title" class="ops-panel-title">Case details</h2><p class="ops-panel-description">Correct descriptive fields without changing workflow status.</p></div></div>
+                    <form method="POST" action="{{ route('incidents.update', $incident) }}" class="ops-stack">@csrf @method('PUT')<div class="ops-form-grid">
+                        <label class="ops-field ops-field--wide"><span class="ops-label">Title</span><input name="title" value="{{ $incident->title }}" required></label>
+                        <label class="ops-field"><span class="ops-label">Type</span><input name="incident_type" value="{{ $incident->incident_type }}" required></label>
+                        <label class="ops-field"><span class="ops-label">Source IP</span><input name="source_ip" value="{{ $incident->source_ip }}"></label>
+                        <label class="ops-field ops-field--full"><span class="ops-label">Detection reason</span><input name="detection_reason" value="{{ $incident->detection_reason }}"></label>
+                        <label class="ops-field ops-field--full"><span class="ops-label">Description</span><textarea name="description" rows="4">{{ $incident->description }}</textarea></label>
+                    </div><div><button class="ops-button ops-button--secondary">Save case details</button></div></form>
+                </section>
+            </div>
 
-                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
-                    <h2 class="text-lg font-semibold text-white">IP response actions</h2>
+            <aside class="ops-stack" aria-label="Incident workflow controls">
+                <section class="ops-panel ops-panel--padded">
+                    <div class="ops-panel-header"><div><h2 class="ops-panel-title">Response workflow</h2><p class="ops-panel-description">Ownership, classification, and lifecycle.</p></div></div>
+                    <form method="POST" action="{{ route('incidents.status.update', $incident) }}" class="ops-stack">@csrf @method('PATCH')<label class="ops-field"><span class="ops-label">Status</span><select name="status">@foreach (['open','investigating','contained','resolved','closed'] as $status)<option value="{{ $status }}" @selected($incident->status === $status)>{{ ucfirst($status) }}</option>@endforeach</select></label><label class="ops-field"><span class="ops-label">Status reason</span><input name="reason" placeholder="Optional reason for the transition"></label><button class="ops-button ops-button--primary">Update status</button></form>
+                    <hr class="ops-divider">
+                    <form method="POST" action="{{ route('incidents.severity.update', $incident) }}" class="ops-stack">@csrf @method('PATCH')<label class="ops-field"><span class="ops-label">Severity</span><select name="severity">@foreach (['Normal','Warning','Suspicious','High','Critical'] as $level)<option value="{{ $level }}" @selected($incident->severity === $level)>{{ $level }}</option>@endforeach</select></label><button class="ops-button ops-button--secondary">Update severity</button></form>
+                    <hr class="ops-divider">
+                    <form method="POST" action="{{ route('incidents.assign', $incident) }}" class="ops-stack">@csrf<label class="ops-field"><span class="ops-label">Assigned administrator</span><select name="assigned_to">@foreach ($admins as $admin)<option value="{{ $admin->id }}" @selected($incident->assigned_to == $admin->id)>{{ $admin->name }}</option>@endforeach</select></label><button class="ops-button ops-button--secondary">Save assignment</button></form>
+                </section>
+
+                <section class="ops-panel ops-panel--padded">
+                    <div class="ops-panel-header"><div><h2 class="ops-panel-title">Response record</h2><p class="ops-panel-description">Document containment and resolution work.</p></div></div>
+                    <form method="POST" action="{{ route('incidents.response.store', $incident) }}" class="ops-stack">@csrf<label class="ops-field"><span class="ops-label">Response actions</span><textarea name="response_actions" rows="4">{{ $incident->response_actions }}</textarea></label><label class="ops-field"><span class="ops-label">Resolution notes</span><textarea name="resolution_notes" rows="4">{{ $incident->resolution_notes }}</textarea></label><button class="ops-button ops-button--secondary">Save response record</button></form>
+                </section>
+
+                <section class="ops-panel ops-panel--padded ops-danger-zone">
+                    <div class="ops-panel-header"><div><h2 class="ops-panel-title">IP response</h2><p class="ops-panel-description">High-impact enforcement action for the recorded source.</p></div></div>
                     @if ($incident->source_ip)
-                        <p class="mt-2 text-sm text-zinc-400">Source IP: <span class="font-mono text-zinc-200">{{ $incident->source_ip }}</span></p>
-                        @if (($ipRules ?? collect())->isNotEmpty())
-                            <ul class="mt-3 space-y-1 text-xs text-zinc-400">
-                                @foreach ($ipRules as $rule)
-                                    <li>Rule #{{ $rule->id }}: {{ $rule->ip_address }} — {{ ucfirst($rule->action) }} ({{ ucfirst($rule->source) }}, {{ $rule->is_enabled ? 'enabled' : 'disabled' }})</li>
-                                @endforeach
-                            </ul>
-                        @else
-                            <p class="mt-3 text-xs text-zinc-500">No enforcing IP Management rule currently matches this IP.</p>
-                        @endif
-                        <form method="POST" action="{{ route('incidents.block-ip', $incident) }}" class="mt-4" onsubmit="return confirm('Block {{ $incident->source_ip }}? A BLOCK rule will be created in IP Management and a remark recorded here.');">
-                            @csrf
-                            <input type="hidden" name="expiration" value="permanent">
-                            <button type="submit" class="w-full rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20">Block source IP</button>
-                        </form>
-                    @else
-                        <p class="mt-2 text-sm text-zinc-400">No source IP recorded for this incident.</p>
-                    @endif
-                </div>
+                        <p class="ops-technical ops-wrap-anywhere">{{ $incident->source_ip }}</p>
+                        @if (($ipRules ?? collect())->isNotEmpty())<ul class="ops-list">@foreach ($ipRules as $rule)<li class="ops-list-row"><div><p class="ops-list-title">{{ strtoupper($rule->action) }} · {{ $rule->ip_address }}</p><p class="ops-list-meta">{{ ucfirst($rule->source) }} · {{ $rule->is_enabled ? 'Enabled' : 'Disabled' }}</p></div></li>@endforeach</ul>@else<p class="ops-panel-description">No IP policy rule currently matches this address.</p>@endif
+                        <form method="POST" action="{{ route('incidents.block-ip', $incident) }}" onsubmit="return confirm('Block {{ $incident->source_ip }}? A permanent BLOCK rule and incident remark will be created.');">@csrf<input type="hidden" name="expiration" value="permanent"><button class="ops-button ops-button--danger">Block source IP</button></form>
+                    @else<p class="ops-panel-description">No source IP is recorded, so enforcement is unavailable.</p>@endif
+                </section>
 
-                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
-                    <h2 class="text-lg font-semibold text-white">Investigation remarks</h2>
-                    <div class="mt-4 space-y-3">
-                        @forelse ($incident->remarks as $remark)
-                            <div class="rounded-lg border border-zinc-800 bg-zinc-900/80 p-3">
-                                <div class="flex items-center justify-between gap-4 text-xs uppercase tracking-[0.15em] text-zinc-500">
-                                    <span>{{ $remark->author?->name ?? 'System' }}</span>
-                                    <span>{{ $remark->created_at?->format('Y-m-d H:i:s') }}</span>
-                                </div>
-                                <p class="mt-2 whitespace-pre-wrap text-sm text-zinc-300">{{ $remark->remark }}</p>
-                            </div>
-                        @empty
-                            <p class="text-sm text-zinc-400">No investigation remarks have been recorded yet.</p>
-                        @endforelse
-                    </div>
-
-                    <form method="POST" action="{{ route('incidents.remarks.store', $incident) }}" class="mt-5 space-y-3">
-                        @csrf
-                        <label class="block text-sm text-zinc-300">
-                            Add remark
-                            <textarea name="remark" rows="4" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder:text-zinc-500"></textarea>
-                        </label>
-                        <button type="submit" class="rounded-md bg-cyan-400 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-cyan-300">Add remark</button>
-                    </form>
-                </div>
-            </div>
-
-            <aside class="space-y-6">
-                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
-                    <h2 class="text-lg font-semibold text-white">Response and status</h2>
-                    <form method="POST" action="{{ route('incidents.status.update', $incident) }}" class="mt-4 space-y-4">
-                        @csrf
-                        @method('PATCH')
-                        <label class="block text-sm text-zinc-300">
-                            Status
-                            <select name="status" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                                @foreach (['open', 'investigating', 'contained', 'resolved', 'closed'] as $status)
-                                    <option value="{{ $status }}" {{ $incident->status === $status ? 'selected' : '' }}>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label class="block text-sm text-zinc-300">
-                            Status reason
-                            <input type="text" name="reason" placeholder="Optional reason" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder:text-zinc-500">
-                        </label>
-                        <button type="submit" class="w-full rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/20">Update status</button>
-                    </form>
-
-                    <form method="POST" action="{{ route('incidents.severity.update', $incident) }}" class="mt-5 space-y-4">
-                        @csrf
-                        @method('PATCH')
-                        <label class="block text-sm text-zinc-300">
-                            Severity
-                            <select name="severity" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                                @foreach (['Normal', 'Warning', 'Suspicious', 'High', 'Critical'] as $level)
-                                    <option value="{{ $level }}" {{ $incident->severity === $level ? 'selected' : '' }}>{{ $level }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <button type="submit" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 hover:border-cyan-500/40 hover:text-white">Update severity</button>
-                    </form>
-
-                    <form method="POST" action="{{ route('incidents.assign', $incident) }}" class="mt-5 space-y-4">
-                        @csrf
-                        <label class="block text-sm text-zinc-300">
-                            Assign administrator
-                            <select name="assigned_to" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">
-                                @foreach ($admins as $admin)
-                                    <option value="{{ $admin->id }}" {{ $incident->assigned_to == $admin->id ? 'selected' : '' }}>{{ $admin->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <button type="submit" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 hover:border-cyan-500/40 hover:text-white">Save assignment</button>
-                    </form>
-
-                    <form method="POST" action="{{ route('incidents.response.store', $incident) }}" class="mt-5 space-y-4">
-                        @csrf
-                        <label class="block text-sm text-zinc-300">
-                            Response actions
-                            <textarea name="response_actions" rows="3" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">{{ $incident->response_actions }}</textarea>
-                        </label>
-                        <label class="block text-sm text-zinc-300">
-                            Resolution notes
-                            <textarea name="resolution_notes" rows="3" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100">{{ $incident->resolution_notes }}</textarea>
-                        </label>
-                        <button type="submit" class="w-full rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/20">Save response details</button>
-                    </form>
-                </div>
-
-                <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-5">
-                    <h2 class="text-lg font-semibold text-white">Timeline</h2>
-                    <ol class="mt-4 space-y-4 border-l border-zinc-800 pl-4">
-                        @foreach ($timeline as $entry)
-                            <li class="relative">
-                                <span class="absolute -left-[1.18rem] mt-1.5 h-2.5 w-2.5 rounded-full bg-cyan-400"></span>
-                                <div class="ml-2">
-                                    <p class="text-xs uppercase tracking-[0.2em] text-zinc-500">{{ $entry['timestamp']?->format('Y-m-d H:i:s') ?? '—' }}</p>
-                                    <p class="mt-1 text-sm font-semibold text-white">{{ $entry['title'] }}</p>
-                                    <p class="mt-1 text-sm text-zinc-300">{{ $entry['detail'] }}</p>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ol>
-                </div>
+                <section class="ops-panel ops-panel--padded"><div class="ops-panel-header"><div><h2 class="ops-panel-title">Case timeline</h2><p class="ops-panel-description">Recorded workflow history.</p></div></div><ol class="ops-list">@forelse ($timeline as $entry)<li class="ops-list-row"><div><p class="ops-list-title">{{ $entry['title'] }}</p><p class="ops-list-meta ops-wrap-anywhere">{{ $entry['detail'] }}</p></div><time class="ops-cell-meta">{{ $entry['timestamp']?->format('Y-m-d H:i:s') ?? 'Not recorded' }}</time></li>@empty<x-ui.empty-state title="No timeline entries" description="Workflow changes will appear here." />@endforelse</ol></section>
             </aside>
         </div>
     </div>

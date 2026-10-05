@@ -3,29 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Enums\MonitoringSource;
-use App\Models\AuthenticationLog;
-use App\Models\Incident;
 use App\Models\RequestActivity;
-use App\Models\SecurityAlert;
 use App\Models\SecurityEvent;
+use App\Services\Security\MonitoringOverviewQueryService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class MonitoringController extends Controller
 {
+    public function __construct(private MonitoringOverviewQueryService $overviewQueries) {}
+
     public function overview(string $source): View
     {
         $monitoringSource = $this->source($source);
 
         return view('monitoring.overview', [
             'monitoringSource' => $monitoringSource,
-            'requestCount' => RequestActivity::query()->forSource($source)->count(),
-            'authenticationCount' => AuthenticationLog::query()->forSource($source)->count(),
-            'securityEventCount' => SecurityEvent::query()->forSource($source)->count(),
-            'openAlertCount' => SecurityAlert::query()->forSource($source)->whereIn('status', ['new', 'acknowledged', 'investigating'])->count(),
-            'openIncidentCount' => Incident::query()->forSource($source)->whereIn('status', ['open', 'investigating', 'contained'])->count(),
-            'recentRequests' => RequestActivity::query()->forSource($source)->latest('occurred_at')->limit(8)->get(),
-            'recentEvents' => SecurityEvent::query()->forSource($source)->latest('occurred_at')->limit(8)->get(),
+            ...$this->overviewQueries->forSource($source),
         ]);
     }
 

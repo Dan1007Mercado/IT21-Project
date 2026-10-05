@@ -1,5 +1,5 @@
 <x-layouts.auth title="Two-factor authentication - INTSEC">
-    <section class="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
+    <section class="auth-flow auth-flow--compact">
         <x-intsec-brand />
         <h1 class="mt-8 text-2xl font-semibold text-white">Two-factor authentication</h1>
         <p class="mt-2 text-sm text-zinc-400">Enter the current code from your authenticator app.</p>

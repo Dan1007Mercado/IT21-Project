@@ -1,5 +1,5 @@
 <x-layouts.auth title="Verify email - INTSEC">
-    <section class="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
+    <section class="auth-flow auth-flow--medium">
         <x-intsec-brand />
         <p class="mt-8 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Mandatory security setup</p>
         <h1 class="mt-2 text-2xl font-semibold text-white">Verify your email</h1>

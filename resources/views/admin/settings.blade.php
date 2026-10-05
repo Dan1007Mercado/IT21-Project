@@ -1,133 +1,84 @@
-<x-layouts.app title="System Settings - INTSEC">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-            <p class="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">Administration</p>
-            <h1 class="mt-2 text-3xl font-semibold text-white">System settings</h1>
-        </div>
-        <a href="{{ route('admin.audit-logs') }}" class="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:border-cyan-500/40">View audit logs</a>
-    </div>
-
-    @if (session('status') === 'settings-updated')
-        <div class="mt-6 rounded-md border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-100">
-            Security threshold settings updated successfully.
-        </div>
-    @endif
-
-    <form method="POST" action="{{ route('admin.settings.store') }}" class="mt-8 space-y-8">
-        @csrf
-
-        <section class="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-            <h2 class="text-lg font-semibold text-white">Authentication protection</h2>
-            <div class="mt-5 grid gap-5 md:grid-cols-2">
-                <label class="block">
-                    <span class="text-sm font-medium text-zinc-200">Maximum failed attempts</span>
-                    <input type="number" min="1" name="max_login_attempts" value="{{ old('max_login_attempts', $settings['max_login_attempts']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                    <small class="mt-1 block text-xs text-zinc-400">Failed attempts allowed before temporary blocking activates.</small>
-                </label>
-
-                <label class="block">
-                    <span class="text-sm font-medium text-zinc-200">Attempt window (minutes)</span>
-                    <input type="number" min="1" name="login_attempt_window_minutes" value="{{ old('login_attempt_window_minutes', $settings['login_attempt_window_minutes']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                    <small class="mt-1 block text-xs text-zinc-400">The rolling time window used to evaluate excess failed logins.</small>
-                </label>
-
-                <label class="block md:col-span-2">
-                    <span class="text-sm font-medium text-zinc-200">Temporary block duration (minutes)</span>
-                    <input type="number" min="1" name="login_block_duration_minutes" value="{{ old('login_block_duration_minutes', $settings['login_block_duration_minutes']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                    <small class="mt-1 block text-xs text-zinc-400">Duration of the temporary authentication block for repeated failures.</small>
-                </label>
-            </div>
-        </section>
-
-        <section class="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-            <h2 class="text-lg font-semibold text-white">Detection thresholds</h2>
-            <div class="mt-5 grid gap-5 md:grid-cols-2">
-                <label class="block">
-                    <span class="text-sm font-medium text-zinc-200">Failed-login warning threshold</span>
-                    <input type="number" min="1" name="failed_login_warning_threshold" value="{{ old('failed_login_warning_threshold', $settings['failed_login_warning_threshold']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                    <small class="mt-1 block text-xs text-zinc-400">When a source crosses this threshold, the event is treated as a warning.</small>
-                </label>
-
-                <label class="block">
-                    <span class="text-sm font-medium text-zinc-200">Repeated authentication threshold</span>
-                    <input type="number" min="1" name="repeated_authentication_threshold" value="{{ old('repeated_authentication_threshold', $settings['repeated_authentication_threshold']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                    <small class="mt-1 block text-xs text-zinc-400">The trigger level for repeated suspicious authentication behavior.</small>
-                </label>
-
-                <label class="block md:col-span-2">
-                    <span class="text-sm font-medium text-zinc-200">Repeated-IP activity threshold</span>
-                    <input type="number" min="1" name="repeated_ip_activity_threshold" value="{{ old('repeated_ip_activity_threshold', $settings['repeated_ip_activity_threshold']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                    <small class="mt-1 block text-xs text-zinc-400">The repeated source-IP activity threshold used in the monitoring workflow.</small>
-                </label>
-            </div>
-        </section>
-
-        <section class="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-            <h2 class="text-lg font-semibold text-white">IP controls</h2>
-            <div class="mt-5 grid gap-5 md:grid-cols-1">
-                <label class="block">
-                    <span class="text-sm font-medium text-zinc-200">Default block duration (minutes)</span>
-                    <input type="number" min="1" name="default_ip_block_duration_minutes" value="{{ old('default_ip_block_duration_minutes', $settings['default_ip_block_duration_minutes']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                    <small class="mt-1 block text-xs text-zinc-400">Fallback duration for administrative IP blocks.</small>
-                </label>
-            </div>
-        </section>
-
+<x-layouts.app title="System settings - INTSEC">
+    <div class="ops-page">
+        <x-ui.page-header kicker="Administration" title="System settings" description="Tune deterministic protection, detection, correlation, and enrichment behavior."><x-slot:context><span class="ops-context-pill">Changes are audited</span></x-slot:context><x-slot:actions><a href="{{ route('admin.audit-logs') }}" class="ops-button ops-button--quiet">View audit logs</a></x-slot:actions></x-ui.page-header>
+        @if (session('status') === 'settings-updated')<div class="ops-banner ops-banner--success" role="status">Security threshold settings updated successfully.</div>@endif
+        @if ($errors->any())<div class="ops-banner ops-banner--danger" role="alert"><div><strong>Settings were not saved.</strong><ul class="mt-2 list-disc pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div></div>@endif
         @php
             $groups = [
+                'Authentication protection' => [
+                    'max_login_attempts' => ['Maximum failed attempts', 'Failed attempts allowed before temporary blocking activates.'],
+                    'login_attempt_window_minutes' => ['Attempt window (minutes)', 'Rolling window used to evaluate excess failed logins.'],
+                    'login_block_duration_minutes' => ['Temporary block duration (minutes)', 'Duration of a temporary authentication block.'],
+                ],
+                'Detection thresholds' => [
+                    'failed_login_warning_threshold' => ['Failed-login warning threshold', 'Marks the source activity as a warning.'],
+                    'repeated_authentication_threshold' => ['Repeated authentication threshold', 'Triggers on repeated suspicious authentication.'],
+                    'repeated_ip_activity_threshold' => ['Repeated-IP activity threshold', 'Repeated source-IP activity used by monitoring.'],
+                ],
                 'Authentication detection' => [
-                    'brute_force_threshold' => 'Failures against one account',
-                    'password_spray_threshold' => 'Distinct identities from one IP',
-                    'distributed_attack_threshold' => 'Distinct IPs attacking one account',
-                ],
-                'Request monitoring' => [
-                    'repeated_request_threshold' => 'Repeated requests per IP',
-                    'request_window_seconds' => 'Request window (seconds)',
-                    'request_spike_threshold' => 'Application request spike',
-                    'repeated_404_threshold' => 'Repeated 404 responses',
-                    'repeated_403_threshold' => 'Repeated 403 responses',
-                    'repeated_401_threshold' => 'Repeated 401 responses',
-                    'sensitive_path_probe_threshold' => 'Sensitive-path probes',
-                ],
-                'Correlation and deduplication' => [
-                    'correlation_window_minutes' => 'Correlation window (minutes)',
-                    'alert_cooldown_minutes' => 'Alert cooldown (minutes)',
+                    'brute_force_threshold' => ['Failures against one account', null],
+                    'password_spray_threshold' => ['Distinct identities from one IP', null],
+                    'distributed_attack_threshold' => ['Distinct IPs attacking one account', null],
                 ],
             ];
+            $requestFields = [
+                'repeated_request_threshold' => ['Repeated requests per IP', null],
+                'request_window_seconds' => ['Request window (seconds)', null],
+                'request_spike_threshold' => ['Application request spike', 'Application-level request volume, not network traffic.'],
+                'repeated_404_threshold' => ['Repeated 404 responses', null],
+                'repeated_403_threshold' => ['Repeated 403 responses', null],
+                'repeated_401_threshold' => ['Repeated 401 responses', null],
+                'sensitive_path_probe_threshold' => ['Sensitive-path probes', null],
+            ];
         @endphp
-        @foreach ($groups as $heading => $fields)
-            <section class="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-                <h2 class="text-lg font-semibold text-white">{{ $heading }}</h2>
-                <div class="mt-5 grid gap-5 md:grid-cols-2">
-                    @foreach ($fields as $key => $label)
-                        <label class="block"><span class="text-sm font-medium text-zinc-200">{{ $label }}</span>
-                            <input type="number" min="1" name="{{ $key }}" value="{{ old($key, $settings[$key]) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-                        </label>
-                    @endforeach
+        <form method="POST" action="{{ route('admin.settings.store') }}" class="ops-stack ops-settings-form">@csrf
+            <div class="ops-settings-summary">
+                @foreach ($groups as $heading => $fields)
+                    <section class="ops-panel ops-panel--padded">
+                        <div class="ops-panel-header"><div><h2 class="ops-panel-title">{{ $heading }}</h2><p class="ops-panel-description">Values must be positive integers.</p></div></div>
+                        <div class="ops-form-grid">
+                            @foreach ($fields as $key => [$label, $help])
+                                <label class="ops-field ops-field--wide"><span class="ops-label">{{ $label }}</span><input type="number" min="1" name="{{ $key }}" value="{{ old($key, $settings[$key]) }}" required>@if ($help)<span class="ops-help">{{ $help }}</span>@endif</label>
+                            @endforeach
+                        </div>
+                    </section>
+                @endforeach
+            </div>
+
+            <div class="ops-settings-detail">
+                <section class="ops-panel ops-panel--padded">
+                    <div class="ops-panel-header"><div><h2 class="ops-panel-title">Request monitoring</h2><p class="ops-panel-description">Application-level request thresholds.</p></div></div>
+                    <div class="ops-form-grid">
+                        @foreach ($requestFields as $key => [$label, $help])
+                            <label class="ops-field ops-field--wide"><span class="ops-label">{{ $label }}</span><input type="number" min="1" name="{{ $key }}" value="{{ old($key, $settings[$key]) }}" required>@if ($help)<span class="ops-help">{{ $help }}</span>@endif</label>
+                        @endforeach
+                    </div>
+                </section>
+
+                <div class="ops-settings-side">
+                    <section class="ops-panel ops-panel--padded">
+                        <div class="ops-panel-header"><div><h2 class="ops-panel-title">Correlation and deduplication</h2><p class="ops-panel-description">Values must be positive integers.</p></div></div>
+                        <div class="ops-form-grid">
+                            @foreach ([
+                                'correlation_window_minutes' => 'Correlation window (minutes)',
+                                'alert_cooldown_minutes' => 'Alert cooldown (minutes)',
+                            ] as $key => $label)
+                                <label class="ops-field ops-field--wide"><span class="ops-label">{{ $label }}</span><input type="number" min="1" name="{{ $key }}" value="{{ old($key, $settings[$key]) }}" required></label>
+                            @endforeach
+                        </div>
+                    </section>
+
+                    <section class="ops-panel ops-panel--padded">
+                        <div class="ops-panel-header"><div><h2 class="ops-panel-title">IP controls and intelligence</h2><p class="ops-panel-description">Blocking defaults and public-IP enrichment.</p></div></div>
+                        <div class="ops-form-grid">
+                            <label class="ops-field ops-field--wide"><span class="ops-label">Default block duration (minutes)</span><input type="number" min="1" name="default_ip_block_duration_minutes" value="{{ old('default_ip_block_duration_minutes', $settings['default_ip_block_duration_minutes']) }}" required><span class="ops-help">Fallback duration for administrative IP blocks.</span></label>
+                            <label class="ops-field ops-field--wide"><span class="ops-label">Cache duration (hours)</span><input type="number" min="1" name="ip_enrichment_cache_hours" value="{{ old('ip_enrichment_cache_hours', $settings['ip_enrichment_cache_hours']) }}" required></label>
+                            <label class="ops-checkbox ops-field--full"><input type="hidden" name="ip_enrichment_enabled" value="0"><input type="checkbox" name="ip_enrichment_enabled" value="1" @checked(old('ip_enrichment_enabled', $settings['ip_enrichment_enabled']))>Queue intelligence enrichment for public IP addresses</label>
+                        </div>
+                    </section>
                 </div>
-            </section>
-        @endforeach
-
-        <section class="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-            <h2 class="text-lg font-semibold text-white">IP intelligence</h2>
-            <div class="mt-5 grid gap-5 md:grid-cols-2">
-                <label class="flex items-center gap-3 text-sm text-zinc-200"><input type="hidden" name="ip_enrichment_enabled" value="0"><input type="checkbox" name="ip_enrichment_enabled" value="1" @checked(old('ip_enrichment_enabled', $settings['ip_enrichment_enabled'])) class="rounded border-zinc-700 bg-zinc-950"> Queue enrichment for public IPs</label>
-                <label class="block"><span class="text-sm font-medium text-zinc-200">Cache duration (hours)</span><input type="number" min="1" name="ip_enrichment_cache_hours" value="{{ old('ip_enrichment_cache_hours', $settings['ip_enrichment_cache_hours']) }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"></label>
             </div>
-        </section>
-
-        @if ($errors->any())
-            <div class="rounded-md border border-red-700 bg-red-950 px-4 py-3 text-sm text-red-100">
-                <ul class="list-disc pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
-        <div class="flex justify-end">
-            <button type="submit" class="rounded-md bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400">Save system settings</button>
-        </div>
-    </form>
+            <div class="ops-filter-actions"><button type="submit" class="ops-button ops-button--primary">Save system settings</button></div>
+        </form>
+    </div>
 </x-layouts.app>

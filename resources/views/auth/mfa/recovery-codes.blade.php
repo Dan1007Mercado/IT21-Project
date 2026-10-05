@@ -1,5 +1,5 @@
 <x-layouts.auth title="Save recovery codes - INTSEC">
-    <section class="w-full max-w-2xl rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
+    <section class="auth-flow auth-flow--medium">
         <x-intsec-brand />
         <h1 class="mt-8 text-2xl font-semibold text-white">Save your recovery codes</h1>
         <p class="mt-2 text-sm text-zinc-400">These codes are shown once. Store them securely and offline. Each code can only be used once.</p>

@@ -1,331 +1,67 @@
 <x-layouts.app title="Incident management - INTSEC" realtime-entities="incident,security_alert">
-    <style>
-        .intsec-scope {
-            --ink: #0A0E13;
-            --panel: #12181F;
-            --panel-raised: #1B232C;
-            --border: #232D38;
-            --text: #E7EDF3;
-            --text-muted: #8592A0;
-            --accent: #E8A33D;
-            --accent-ink: #0A0E13;
+    <div class="ops-page">
+        <x-ui.page-header kicker="Response operations" title="Incident management" description="Investigate, contain, and resolve correlated security activity with a traceable response record.">
+            <x-slot:context><span class="ops-context-pill ops-context-pill--live">Live incident queue</span><span class="ops-context-pill">{{ $incidents->count() }} incidents on this page</span></x-slot:context>
+            <x-slot:actions><button type="button" class="ops-button ops-button--primary" data-modal-trigger="create-incident-modal">Create incident</button></x-slot:actions>
+        </x-ui.page-header>
 
-            --sev-normal: #5B7A99;
-            --sev-warning: #D9A441;
-            --sev-suspicious: #D9823F;
-            --sev-high: #D9593F;
-            --sev-critical: #D93F4E;
-
-            color: var(--text);
-        }
-        .intsec-scope .font-mono-plex { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
-
-        .intsec-scope details.create summary { list-style: none; cursor: pointer; }
-        .intsec-scope details.create summary::-webkit-details-marker { display: none; }
-        .intsec-scope details.create[open] summary { border-bottom: 1px solid var(--border); }
-
-        .intsec-scope .sev { display: inline-flex; align-items: center; gap: 7px; font-weight: 500; }
-        .intsec-scope .sev::before { content: ""; width: 7px; height: 7px; border-radius: 9999px; background: var(--sev); flex: none; }
-
-        .intsec-scope .status-dot { display: inline-flex; align-items: center; gap: 6px; }
-        .intsec-scope .status-dot::before { content: ""; width: 6px; height: 6px; border-radius: 9999px; }
-        .intsec-scope .status-active { color: var(--accent); font-weight: 500; }
-        .intsec-scope .status-active::before { background: var(--accent); }
-        .intsec-scope .status-quiet { color: var(--text-muted); }
-        .intsec-scope .status-quiet::before { background: var(--text-muted); }
-
-        .intsec-scope input:focus-visible,
-        .intsec-scope select:focus-visible,
-        .intsec-scope textarea:focus-visible,
-        .intsec-scope button:focus-visible,
-        .intsec-scope a:focus-visible {
-            outline: 2px solid var(--accent);
-            outline-offset: 2px;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            .intsec-scope * { transition: none !important; }
-        }
-    </style>
-
-    <div class="intsec-scope space-y-7" style="background-color: var(--ink);">
         @if ($errors->any())
-            <div class="rounded-md border border-red-700 bg-red-950 px-4 py-3 text-sm text-red-100">
-                <p class="font-semibold">Incident was not saved.</p>
-                <ul class="mt-2 list-disc space-y-1 pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
+            <div class="ops-banner ops-banner--danger" role="alert"><div><strong>Incident was not saved.</strong><ul class="mt-2 list-disc pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div></div>
         @endif
+        @if (session('status') === 'incident-created')<div class="ops-banner ops-banner--success" role="status">Incident created and added to the response queue.</div>@endif
 
-        @if (session('status') === 'incident-created')
-            <div class="rounded-md border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-100">
-                Incident created and saved to the database.
+        @php
+            $stats = [
+                ['label' => 'Open incidents', 'value' => $summary['open'], 'context' => 'Awaiting triage'],
+                ['label' => 'Investigating', 'value' => $summary['investigating'], 'context' => 'Active investigations'],
+                ['label' => 'High / critical', 'value' => $summary['high_critical'], 'context' => 'Priority response'],
+                ['label' => 'Contained', 'value' => $summary['contained'], 'context' => 'Threat constrained'],
+                ['label' => 'Resolved', 'value' => $summary['resolved'], 'context' => 'Response completed'],
+            ];
+        @endphp
+        <section class="ops-kpi-grid" aria-label="Incident queue summary">@foreach ($stats as $stat)<x-security.metric-card :label="$stat['label']" :value="$stat['value']" :context="$stat['context']" />@endforeach</section>
+
+        <form method="GET" action="{{ route('incidents.index') }}" class="ops-filter" aria-label="Filter incidents">
+            <div class="ops-filter-heading"><div><h2 class="ops-filter-title">Incident filters</h2><p class="ops-filter-state">Narrow the response queue without changing incident state.</p></div></div>
+            <div class="ops-filter-grid">
+                <label class="ops-field ops-field--search"><span class="ops-label">Search</span><input name="search" value="{{ request('search') }}" placeholder="Incident ID, title, IP, or reason"></label>
+                <label class="ops-field"><span class="ops-label">Type</span><select name="incident_type"><option value="">All types</option>@foreach (['authentication' => 'Authentication','authorization' => 'Authorization','ip_activity' => 'IP activity'] as $value => $label)<option value="{{ $value }}" @selected(request('incident_type') === $value)>{{ $label }}</option>@endforeach</select></label>
+                <label class="ops-field"><span class="ops-label">Source</span><select name="source"><option value="">All sources</option>@foreach(config('intsec.sources') as $value => $label)<option value="{{ $value }}" @selected(request('source') === $value)>{{ $label }}</option>@endforeach</select></label>
+                <label class="ops-field"><span class="ops-label">Severity</span><select name="severity"><option value="">All severities</option>@foreach (['Normal','Warning','Suspicious','High','Critical'] as $level)<option value="{{ $level }}" @selected(request('severity') === $level)>{{ $level }}</option>@endforeach</select></label>
+                <label class="ops-field"><span class="ops-label">Status</span><select name="status"><option value="">All statuses</option>@foreach (['open','investigating','contained','resolved','closed'] as $status)<option value="{{ $status }}" @selected(request('status') === $status)>{{ ucfirst($status) }}</option>@endforeach</select></label>
+                <label class="ops-field"><span class="ops-label">From date</span><input type="date" name="from_date" value="{{ request('from_date') }}"></label>
+                <label class="ops-field"><span class="ops-label">To date</span><input type="date" name="to_date" value="{{ request('to_date') }}"></label>
+                <div class="ops-filter-actions"><a href="{{ route('incidents.index') }}" class="ops-button ops-button--quiet">Clear</a><button class="ops-button ops-button--secondary">Apply filters</button></div>
             </div>
-        @endif
-
-        {{-- Wayfinding + title --}}
-        <div>
-            <p class="font-mono-plex text-xs" style="color: var(--text-muted);">
-                <span style="color: var(--accent);">intsec</span> / incidents
-            </p>
-            <h1 class="mt-2 text-3xl font-semibold" style="color: var(--text); letter-spacing: -0.01em;">
-                Incident management
-            </h1>
-            <p class="mt-2 text-sm" style="color: var(--text-muted);">Open incidents</p>
-        </div>
-
-        {{-- Telemetry strip: current queue state, the primary at-a-glance signal --}}
-        @php($stats = [
-            ['label' => 'Open', 'value' => $summary['open'], 'tone' => 'var(--sev-warning)'],
-            ['label' => 'Investigating', 'value' => $summary['investigating'], 'tone' => 'var(--text)'],
-            ['label' => 'High / critical', 'value' => $summary['high_critical'], 'tone' => 'var(--sev-critical)'],
-            ['label' => 'Contained', 'value' => $summary['contained'], 'tone' => 'var(--text)'],
-            ['label' => 'Resolved', 'value' => $summary['resolved'], 'tone' => 'var(--text)'],
-        ])
-        <div class="flex flex-wrap" style="border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
-            @foreach ($stats as $i => $stat)
-                <div class="flex-1 min-w-[150px] px-6 py-5" style="{{ $i > 0 ? 'border-left: 1px solid var(--border);' : '' }}">
-                    <p class="font-mono-plex text-[26px] font-medium" style="color: {{ $stat['tone'] }};">{{ $stat['value'] }}</p>
-                    <p class="mt-1 text-sm" style="color: var(--text-muted);">{{ $stat['label'] }}</p>
-                </div>
-            @endforeach
-        </div>
-
-        <div class="flex items-center justify-between">
-            <div></div>
-            <button type="button" id="open-incident-modal" class="inline-flex items-center gap-2 rounded-md border border-cyan-400/50 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/20">
-                <span class="text-lg leading-none">+</span>
-                New incident
-            </button>
-        </div>
-
-        <div id="incident-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center overflow-y-auto bg-zinc-950/80 p-4 backdrop-blur-sm">
-            <div class="mx-auto my-auto max-h-[calc(100vh-3rem)] w-full max-w-4xl overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-cyan-950/20">
-                <div class="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-                    <div>
-                        <p class="text-xs font-medium uppercase tracking-[0.2em] text-cyan-300">Create incident</p>
-                        <h2 class="mt-1 text-xl font-semibold text-white">New incident</h2>
-                    </div>
-                    <button type="button" data-close-incident-modal class="rounded-md border border-zinc-700 px-2.5 py-1.5 text-sm text-zinc-300 hover:border-zinc-600 hover:text-white">Close</button>
-                </div>
-
-                <form method="POST" action="{{ route('incidents.store') }}" class="space-y-5 p-5">
-                    @csrf
-                    <input type="hidden" name="status" value="open">
-                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
-                            Title
-                            <input type="text" name="title" value="{{ old('title') }}" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
-                        </label>
-                        <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
-                            Type
-                            <input type="text" name="incident_type" value="{{ old('incident_type', 'authentication') }}" required class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-cyan-400 focus:outline-none">
-                        </label>
-                        <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
-                            Severity
-                            <select name="severity" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-cyan-400 focus:outline-none">
-                                @foreach (['Normal', 'Warning', 'Suspicious', 'High', 'Critical'] as $level)
-                                    <option value="{{ $level }}" {{ old('severity') === $level ? 'selected' : '' }}>{{ $level }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
-                            Source IP
-                            <input type="text" name="source_ip" value="{{ old('source_ip') }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
-                        </label>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
-                            Detection reason
-                            <input type="text" name="detection_reason" value="{{ old('detection_reason') }}" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">
-                        </label>
-                        <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
-                            Target user
-                            <select name="user_id" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-cyan-400 focus:outline-none">
-                                <option value="">None</option>
-                                @foreach ($users as $user)
-                                    <option value="{{ $user->id }}" {{ (string) old('user_id') === (string) $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    </div>
-
-                    <label class="block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
-                        Description
-                        <textarea name="description" rows="4" class="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-400 focus:outline-none">{{ old('description') }}</textarea>
-                    </label>
-
-                    <div class="flex justify-end gap-3 pt-2">
-                        <button type="button" data-close-incident-modal class="rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 hover:border-zinc-600 hover:text-white">Cancel</button>
-                        <button type="submit" class="rounded-md bg-cyan-400 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-300">Save incident</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        {{-- Filters --}}
-        <form method="GET" action="{{ route('incidents.index') }}" class="flex flex-wrap gap-2.5">
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search incidents"
-                class="flex-1 min-w-[200px] rounded-md px-3 py-2 text-sm"
-                style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
-            <select name="incident_type" class="rounded-md px-3 py-2 text-sm"
-                style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
-                <option value="">Type</option>
-                <option value="authentication" {{ request('incident_type') === 'authentication' ? 'selected' : '' }}>Authentication</option>
-                <option value="authorization" {{ request('incident_type') === 'authorization' ? 'selected' : '' }}>Authorization</option>
-                <option value="ip_activity" {{ request('incident_type') === 'ip_activity' ? 'selected' : '' }}>IP activity</option>
-            </select>
-            <select name="source" class="rounded-md px-3 py-2 text-sm" style="background: var(--panel); border: 1px solid var(--border); color: var(--text);"><option value="">All sources</option>@foreach(config('intsec.sources') as $value => $label)<option value="{{ $value }}" @selected(request('source') === $value)>{{ $label }}</option>@endforeach</select>
-            <select name="severity" class="rounded-md px-3 py-2 text-sm"
-                style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
-                <option value="">Severity</option>
-                @foreach (['Normal','Warning','Suspicious','High','Critical'] as $level)
-                    <option value="{{ $level }}" {{ request('severity') === $level ? 'selected' : '' }}>{{ $level }}</option>
-                @endforeach
-            </select>
-            <select name="status" class="rounded-md px-3 py-2 text-sm"
-                style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
-                <option value="">Status</option>
-                @foreach (['open','investigating','contained','resolved','closed'] as $status)
-                    <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
-                @endforeach
-            </select>
-            <input type="date" name="from_date" value="{{ request('from_date') }}" class="rounded-md px-3 py-2 text-sm"
-                style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
-            <input type="date" name="to_date" value="{{ request('to_date') }}" class="rounded-md px-3 py-2 text-sm"
-                style="background: var(--panel); border: 1px solid var(--border); color: var(--text);">
-            <button type="submit" class="rounded-md px-4 py-2 text-sm font-semibold"
-                style="background: transparent; border: 1px solid var(--accent); color: var(--accent);">
-                Apply
-            </button>
         </form>
 
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const modal = document.getElementById('incident-modal');
-                const openBtn = document.getElementById('open-incident-modal');
-                const closeButtons = document.querySelectorAll('[data-close-incident-modal]');
-                const shouldOpenModal = @json($errors->any());
+        <section class="ops-table-shell" aria-labelledby="incident-table-title">
+            <div class="ops-panel-header"><div><h2 id="incident-table-title" class="ops-panel-title">Incident queue</h2><p class="ops-panel-description">Prioritized case records and ownership.</p></div></div>
+            <div class="ops-table-scroll"><table class="ops-table ops-table--xwide"><caption>Filtered security incident queue</caption>
+                <thead><tr><th>Incident</th><th>Summary</th><th>Source</th><th>Severity</th><th>Status</th><th>Source IP</th><th>Owner</th><th>Activity</th><th><span class="sr-only">Action</span></th></tr></thead>
+                <tbody>@forelse ($incidents as $incident)<tr>
+                    <td><span class="ops-cell-primary ops-technical">{{ $incident->incident_id }}</span><span class="ops-cell-meta">{{ ucfirst(str_replace('_', ' ', $incident->incident_type)) }}</span></td>
+                    <td><a class="ops-panel-link ops-wrap-anywhere" href="{{ route('incidents.show', $incident) }}">{{ $incident->title }}</a><span class="ops-cell-meta">{{ \Illuminate\Support\Str::limit($incident->detection_reason ?: 'No detection reason recorded', 80) }}</span></td>
+                    <td><x-security.source-badge :source="$incident->source" /></td><td><x-security.severity-badge :severity="$incident->severity" /></td><td><x-security.status-badge :status="$incident->status" /></td>
+                    <td><span class="ops-technical ops-wrap-anywhere" title="{{ $incident->source_ip }}">{{ $incident->source_ip ?: 'Not recorded' }}</span></td><td>{{ $incident->assignedAdministrator?->name ?? 'Unassigned' }}</td>
+                    <td><span class="ops-cell-primary">{{ $incident->last_detected_at?->diffForHumans() ?? $incident->updated_at?->diffForHumans() }}</span><span class="ops-cell-meta">{{ $incident->event_count ?? 0 }} related events</span></td>
+                    <td><a class="ops-button ops-button--quiet" href="{{ route('incidents.show', $incident) }}">Investigate</a></td>
+                </tr>@empty<tr><td colspan="9"><x-ui.empty-state title="No incidents found" description="No incident records match the current filters." /></td></tr>@endforelse</tbody>
+            </table></div><x-ui.simple-pagination :paginator="$incidents" noun="incidents" />
+        </section>
+    </div>
 
-                const openModal = () => {
-                    if (!modal) return;
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                };
-
-                const closeModal = () => {
-                    if (!modal) return;
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                };
-
-                openBtn?.addEventListener('click', openModal);
-                closeButtons.forEach((button) => button.addEventListener('click', closeModal));
-
-                if (shouldOpenModal) {
-                    openModal();
-                }
-
-                modal?.addEventListener('click', function (event) {
-                    if (event.target === modal) {
-                        closeModal();
-                    }
-                });
-
-                document.addEventListener('keydown', function (event) {
-                    if (event.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
-                        closeModal();
-                    }
-                });
-            });
-        </script>
-
-        {{-- Incident log --}}
-        <div class="rounded-lg overflow-hidden" style="border: 1px solid var(--border);">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm" style="min-width: 1080px; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background: var(--panel); border-bottom: 1px solid var(--border);">
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Incident</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Source</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Title</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Type</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Severity</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Source IP</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Target user</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Status</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Assigned to</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">First detected</th>
-                            <th class="px-3.5 py-3 font-medium text-xs whitespace-nowrap" style="color: var(--text-muted);">Last detected</th>
-                            <th class="px-3.5 py-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @php($severityColor = [
-                            'Normal' => 'var(--sev-normal)',
-                            'Warning' => 'var(--sev-warning)',
-                            'Suspicious' => 'var(--sev-suspicious)',
-                            'High' => 'var(--sev-high)',
-                            'Critical' => 'var(--sev-critical)',
-                        ])
-                        @php($unresolvedStatuses = ['open', 'investigating'])
-                        @forelse ($incidents as $incident)
-                            @php($sevVar = $severityColor[$incident->severity] ?? 'var(--sev-normal)')
-                            <tr style="border-bottom: 1px solid var(--border);"
-                                onmouseover="this.style.background='var(--panel-raised)'"
-                                onmouseout="this.style.background='transparent'">
-                                <td class="font-mono-plex px-3.5 py-3" style="border-left: 3px solid {{ $sevVar }}; color: var(--text);">
-                                    {{ $incident->incident_id }}
-                                </td>
-                                <td class="px-3.5 py-3"><x-security.source-badge :source="$incident->source" /></td>
-                                <td class="px-3.5 py-3">
-                                    <a href="{{ route('incidents.show', $incident) }}" class="font-medium hover:underline" style="color: var(--text);">
-                                        {{ $incident->title }}
-                                    </a>
-                                </td>
-                                <td class="px-3.5 py-3 capitalize" style="color: var(--text-muted);">{{ str_replace('_', ' ', $incident->incident_type) }}</td>
-                                <td class="px-3.5 py-3">
-                                    <span class="sev" style="--sev: {{ $sevVar }}; color: {{ $sevVar }};">{{ $incident->severity }}</span>
-                                </td>
-                                <td class="font-mono-plex px-3.5 py-3" style="color: var(--text);">{{ $incident->source_ip ?: '—' }}</td>
-                                <td class="px-3.5 py-3" style="color: var(--text);">{{ $incident->user?->name ?? '—' }}</td>
-                                <td class="px-3.5 py-3">
-                                    <span class="status-dot text-sm {{ in_array($incident->status, $unresolvedStatuses) ? 'status-active' : 'status-quiet' }}">
-                                        {{ ucfirst(str_replace('_', ' ', $incident->status)) }}
-                                    </span>
-                                </td>
-                                <td class="px-3.5 py-3" style="color: {{ $incident->assignedAdministrator ? 'var(--text)' : 'var(--text-muted)' }};">
-                                    {{ $incident->assignedAdministrator?->name ?? 'Unassigned' }}
-                                </td>
-                                <td class="font-mono-plex px-3.5 py-3" style="color: var(--text-muted);">{{ $incident->first_detected_at?->format('Y-m-d H:i') ?? '—' }}</td>
-                                <td class="font-mono-plex px-3.5 py-3" style="color: var(--text-muted);">{{ $incident->last_detected_at?->format('Y-m-d H:i') ?? '—' }}</td>
-                                <td class="px-3.5 py-3">
-                                    <a href="{{ route('incidents.show', $incident) }}" class="font-medium hover:underline" style="color: var(--accent);">View</a>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="12" class="px-4 py-14 text-center" style="color: var(--text-muted);">
-                                    No incidents match the current filter set.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="flex items-center justify-between gap-3 border-t border-zinc-800 px-3 py-4 text-sm text-zinc-300">
-            <div class="text-zinc-400">
-                Showing {{ $incidents->firstItem() ?? 0 }}-{{ $incidents->lastItem() ?? 0 }} incidents on this page
-            </div>
-            <div class="flex justify-end">
-                {{ $incidents->appends(request()->query())->links() }}
-            </div>
+    <div id="create-incident-modal" class="ops-modal" data-modal data-modal-auto-open="{{ $errors->any() ? 'true' : 'false' }}" role="dialog" aria-modal="true" aria-labelledby="create-incident-title" aria-hidden="true">
+        <div class="ops-modal-dialog"><div class="ops-modal-header"><div><p class="ops-kicker">Response operations</p><h2 id="create-incident-title" class="ops-panel-title">Create incident</h2></div><button type="button" class="ops-button ops-button--quiet" data-modal-close>Close</button></div>
+            <form method="POST" action="{{ route('incidents.store') }}" class="ops-modal-body ops-stack">@csrf<input type="hidden" name="status" value="open"><div class="ops-form-grid">
+                <label class="ops-field ops-field--wide"><span class="ops-label">Title <span class="ops-required">required</span></span><input name="title" value="{{ old('title') }}" required></label>
+                <label class="ops-field"><span class="ops-label">Type <span class="ops-required">required</span></span><input name="incident_type" value="{{ old('incident_type', 'authentication') }}" required></label>
+                <label class="ops-field"><span class="ops-label">Severity</span><select name="severity">@foreach (['Normal','Warning','Suspicious','High','Critical'] as $level)<option value="{{ $level }}" @selected(old('severity') === $level)>{{ $level }}</option>@endforeach</select></label>
+                <label class="ops-field"><span class="ops-label">Source IP</span><input name="source_ip" value="{{ old('source_ip') }}" placeholder="IPv4 or IPv6 address"></label>
+                <label class="ops-field ops-field--wide"><span class="ops-label">Detection reason</span><input name="detection_reason" value="{{ old('detection_reason') }}"></label>
+                <label class="ops-field"><span class="ops-label">Target account</span><select name="user_id"><option value="">None</option>@foreach ($users as $user)<option value="{{ $user->id }}" @selected((string) old('user_id') === (string) $user->id)>{{ $user->name }}</option>@endforeach</select></label>
+                <label class="ops-field ops-field--full"><span class="ops-label">Description</span><textarea name="description" rows="4">{{ old('description') }}</textarea></label>
+            </div><div class="ops-filter-actions"><button type="button" class="ops-button ops-button--quiet" data-modal-close>Cancel</button><button class="ops-button ops-button--primary">Create incident</button></div></form>
         </div>
     </div>
 </x-layouts.app>

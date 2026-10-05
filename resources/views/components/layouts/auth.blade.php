@@ -14,11 +14,11 @@
     @endif
     <x-app-assets />
 </head>
-<body @class(['min-h-screen bg-zinc-950 text-zinc-100 antialiased', 'login-page' => $immersive])>
+<body @class(['min-h-screen bg-zinc-950 text-zinc-100 antialiased', 'login-page' => $immersive, 'auth-shell-page' => ! $immersive])>
     @if($immersive)
         {{ $slot }}
     @else
-        <main class="flex min-h-screen items-center justify-center px-4 py-12">{{ $slot }}</main>
+        <main class="flex min-h-screen items-center justify-center px-4 py-8 sm:py-12">{{ $slot }}</main>
     @endif
 </body>
 </html>

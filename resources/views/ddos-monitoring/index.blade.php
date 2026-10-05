@@ -1,15 +1,169 @@
 <x-layouts.app title="Application Request Spikes - INTSEC" wide realtime-entities="request_activity,security_alert" :realtime-source="$monitoringSource->value">
-    <header><p class="text-xs uppercase tracking-[0.2em] text-cyan-400">{{ $monitoringSource->label() }} monitoring</p><h1 class="mt-2 text-3xl font-semibold text-white">Application request spikes</h1><p class="mt-2 max-w-3xl text-sm text-zinc-400">Request-volume monitoring from {{ $monitoringSource->label() }} HTTP telemetry after TLS termination. This is not network-layer DDoS detection.</p></header>
-    <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <x-security.metric-card label="Current hour" :value="number_format($currentRequests)" />
-        <x-security.metric-card label="24-hour peak" :value="number_format($peakRequests)" tone="amber" />
-        <x-security.metric-card label="Threshold" :value="number_format($spikeThreshold)" tone="zinc" />
-        <x-security.metric-card label="Spike buckets" :value="number_format($suspiciousSpikes)" tone="red" />
-    </section>
-    <section class="mt-6 rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div class="flex flex-wrap justify-between gap-3"><div><h2 class="font-semibold text-white">Requests by hour</h2><p class="text-sm text-zinc-500">Last 24 hours</p></div><div class="text-xs text-zinc-500">4xx: {{ number_format($clientErrorCount) }} · 5xx: {{ number_format($serverErrorCount) }}</div></div><div class="mt-5 h-80"><canvas id="requestVolume"></canvas></div></section>
-    <section class="mt-6 grid gap-4 lg:grid-cols-2">
-        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Top source IPs</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($topIps as $row)<div class="flex justify-between py-3 text-sm"><span class="font-mono text-zinc-300">{{ $row->ip_address }}</span><span class="text-zinc-500">{{ number_format($row->total) }}</span></div>@empty<p class="py-6 text-sm text-zinc-500">No request telemetry.</p>@endforelse</div></div>
-        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Top routes and paths</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($topRoutes as $row)<div class="flex justify-between gap-4 py-3 text-sm"><span class="min-w-0 truncate font-mono text-zinc-300">{{ $row->path }}</span><span class="text-zinc-500">{{ number_format($row->total) }}</span></div>@empty<p class="py-6 text-sm text-zinc-500">No request telemetry.</p>@endforelse</div></div>
-    </section>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script>new Chart(document.getElementById('requestVolume'),{type:'line',data:{labels:@json($hourlyTrend->pluck('label')),datasets:[{data:@json($hourlyTrend->pluck('count')),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,.12)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#71717a'},grid:{display:false}},y:{beginAtZero:true,ticks:{color:'#71717a',precision:0},grid:{color:'rgba(255,255,255,.06)'}}}}});</script>
+    @php
+        $requestTotal = $hourlyTrend->sum('count');
+    @endphp
+    <div class="ops-page">
+        <x-ui.page-header
+            :kicker="$monitoringSource->label().' monitoring'"
+            title="Application request spikes"
+            :description="'Request-volume monitoring from '.$monitoringSource->label().' HTTP telemetry after TLS termination. This identifies application-level spikes; it is not network-layer DDoS detection.'"
+        >
+            <x-slot:context>
+                <span class="ops-context-pill ops-context-pill--live">Live request updates</span>
+                <span class="ops-context-pill">Rolling 24-hour window</span>
+                <span class="ops-context-pill">Threshold {{ number_format($spikeThreshold) }} requests/hour</span>
+            </x-slot:context>
+        </x-ui.page-header>
+
+        <section class="ops-section" aria-label="Request spike metrics">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <x-security.metric-card label="Current hour" :value="number_format($currentRequests)" context="Requests in the current hourly bucket" />
+                <x-security.metric-card label="24-hour peak" :value="number_format($peakRequests)" tone="amber" context="Highest hourly request count in this window" />
+                <x-security.metric-card label="Spike threshold" :value="number_format($spikeThreshold)" tone="zinc" context="Configured requests-per-hour threshold" />
+                <x-security.metric-card label="Threshold crossings" :value="number_format($suspiciousSpikes)" :tone="$suspiciousSpikes > 0 ? 'red' : 'emerald'" context="Hourly buckets at or above the threshold" />
+            </div>
+        </section>
+
+        <section class="ops-section ops-panel" aria-labelledby="request-volume-title">
+            <div class="ops-panel-header">
+                <div>
+                    <h2 id="request-volume-title" class="ops-panel-title">Requests by hour</h2>
+                    <p class="ops-panel-description">Use the configured threshold as a review signal, not automatic proof of an attack.</p>
+                </div>
+                <span class="ops-context-pill">{{ number_format($requestTotal) }} requests</span>
+            </div>
+            @if ($requestTotal > 0)
+                <div class="ops-chart">
+                    <canvas id="request-volume" role="img" aria-label="Hourly application request volume over the last 24 hours"></canvas>
+                </div>
+                <div class="ops-pagination" aria-label="Request status context">
+                    <span>HTTP client errors (4xx): <strong>{{ number_format($clientErrorCount) }}</strong></span>
+                    <span>HTTP server errors (5xx): <strong>{{ number_format($serverErrorCount) }}</strong></span>
+                </div>
+            @else
+                <x-ui.empty-state title="No request telemetry in this window" description="The request trend will appear after application requests are observed for this source." />
+            @endif
+        </section>
+
+        <section class="ops-section ops-grid-3" aria-label="Request spike supporting context">
+            <article class="ops-panel">
+                <div class="ops-panel-header">
+                    <div>
+                        <h2 class="ops-panel-title">Top source IPs</h2>
+                        <p class="ops-panel-description">Highest request counts during the last 24 hours.</p>
+                    </div>
+                </div>
+                @if ($topIps->isNotEmpty())
+                    <ul class="ops-list">
+                        @foreach ($topIps as $row)
+                            <li class="ops-list-row">
+                                <span class="ops-list-title ops-technical ops-wrap-anywhere" title="{{ $row->ip_address }}">{{ $row->ip_address }}</span>
+                                <strong class="ops-numeric">{{ number_format($row->total) }}</strong>
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <x-ui.empty-state title="No source IP activity" description="No source-address request counts are available for this window." />
+                @endif
+            </article>
+
+            <article class="ops-panel">
+                <div class="ops-panel-header">
+                    <div>
+                        <h2 class="ops-panel-title">Top routes and paths</h2>
+                        <p class="ops-panel-description">Most frequently requested application endpoints.</p>
+                    </div>
+                </div>
+                @if ($topRoutes->isNotEmpty())
+                    <ul class="ops-list">
+                        @foreach ($topRoutes as $row)
+                            <li class="ops-list-row">
+                                <span class="ops-list-title ops-technical ops-wrap-anywhere" title="{{ $row->path }}">{{ $row->path }}</span>
+                                <strong class="ops-numeric">{{ number_format($row->total) }}</strong>
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <x-ui.empty-state title="No route activity" description="No route or path counts are available for this window." />
+                @endif
+            </article>
+
+            <article class="ops-panel">
+                <div class="ops-panel-header">
+                    <div>
+                        <h2 class="ops-panel-title">HTTP response mix</h2>
+                        <p class="ops-panel-description">Status-family distribution during the last 24 hours.</p>
+                    </div>
+                </div>
+                @if ($statusDistribution->isNotEmpty())
+                    <ul class="ops-list">
+                        @foreach (['2xx', '3xx', '4xx', '5xx'] as $family)
+                            @php
+                                $familyTone = match ($family) {
+                                    '2xx' => 'green',
+                                    '3xx' => 'cyan',
+                                    '4xx' => 'amber',
+                                    '5xx' => 'red',
+                                };
+                            @endphp
+                            <li class="ops-list-row">
+                                <span class="ops-badge ops-badge--{{ $familyTone }}">{{ $family }}</span>
+                                <strong class="ops-numeric">{{ number_format($statusDistribution[$family] ?? 0) }}</strong>
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <x-ui.empty-state title="No HTTP response data" description="Status-family context will appear with request telemetry." />
+                @endif
+            </article>
+        </section>
+    </div>
+
+    @if ($requestTotal > 0)
+        <x-slot:scripts>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <script>
+                new Chart(document.getElementById('request-volume'), {
+                    type: 'line',
+                    data: {
+                        labels: @json($hourlyTrend->pluck('label')),
+                        datasets: [
+                            {
+                                label: 'Requests',
+                                data: @json($hourlyTrend->pluck('count')),
+                                borderColor: '#38bdf8',
+                                backgroundColor: 'rgba(56, 189, 248, .1)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                pointHoverRadius: 4,
+                                fill: true,
+                                tension: .3,
+                            },
+                            {
+                                label: 'Spike threshold',
+                                data: Array({{ $hourlyTrend->count() }}).fill({{ $spikeThreshold }}),
+                                borderColor: 'rgba(251, 191, 36, .72)',
+                                borderDash: [6, 5],
+                                borderWidth: 1,
+                                pointRadius: 0,
+                                fill: false,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { labels: { color: '#a8bfd0', boxWidth: 12 } },
+                        },
+                        scales: {
+                            x: { ticks: { color: '#8eabc0', maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { color: '#8eabc0', precision: 0 }, grid: { color: 'rgba(56, 189, 248, .08)' } },
+                        },
+                    },
+                });
+            </script>
+        </x-slot:scripts>
+    @endif
 </x-layouts.app>

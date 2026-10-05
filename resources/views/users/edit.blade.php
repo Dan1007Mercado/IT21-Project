@@ -1,8 +1,1 @@
-<x-layouts.app title="Edit User - INTSEC">
-    <a href="{{ route('users.show', $managedUser) }}" class="text-sm text-cyan-300 hover:text-cyan-200">&larr; Back to user</a>
-    <h1 class="mt-4 text-3xl font-semibold text-white">Edit {{ $managedUser->name }}</h1>
-    <form method="POST" action="{{ route('users.update', $managedUser) }}" class="mt-6 rounded-lg border border-zinc-800 bg-zinc-900 p-6">@csrf @method('PUT')
-        @include('users._form')
-        <div class="mt-6 flex justify-end"><button class="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-cyan-400">Save changes</button></div>
-    </form>
-</x-layouts.app>
+<x-layouts.app title="Edit user - INTSEC"><div class="ops-page"><x-ui.page-header kicker="Access administration" :title="'Edit '.$managedUser->name" description="Update identity, authorization, account state, or credentials."><x-slot:actions><a href="{{ route('users.show', $managedUser) }}" class="ops-button ops-button--quiet">Back to user</a></x-slot:actions></x-ui.page-header>@if ($errors->any())<div class="ops-banner ops-banner--danger" role="alert">Review the highlighted account fields.</div>@endif<form method="POST" action="{{ route('users.update', $managedUser) }}" class="ops-panel ops-panel--padded ops-stack">@csrf @method('PUT')<div class="ops-panel-header"><div><h2 class="ops-panel-title">Account details</h2><p class="ops-panel-description">Leave password fields blank to preserve the current password.</p></div></div>@include('users._form')<div class="ops-filter-actions"><a class="ops-button ops-button--quiet" href="{{ route('users.show', $managedUser) }}">Cancel</a><button class="ops-button ops-button--primary">Save changes</button></div></form></div></x-layouts.app>
