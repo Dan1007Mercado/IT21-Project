@@ -7,9 +7,9 @@
     <img
         src="{{ asset('images/INTSEC.png') }}"
         alt="INTSEC"
-        class="{{ $compact ? 'h-9 w-9' : 'h-11 w-11' }} rounded-md object-cover object-center"
+        class="{{ $compact ? 'h-9 w-9' : 'h-11 w-11' }} rounded-md object-contain object-center"
     >
-    <span>
+    <span class="sidebar-brand-copy">
         <span class="block text-base font-semibold text-white">INTSEC</span>
         @unless ($compact)
             <span class="mt-0.5 block text-xs text-zinc-500">Intrusion monitoring</span>

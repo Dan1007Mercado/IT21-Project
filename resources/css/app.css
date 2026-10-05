@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+@import './login.css';
+@import './dashboard.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -12,6 +14,17 @@
 
 :root {
     color-scheme: dark;
+    --intsec-bg: #06111d;
+    --intsec-bg-deep: #040b12;
+    --intsec-panel: #0b1d2d;
+    --intsec-panel-raised: #0d2234;
+    --intsec-border: #173b55;
+    --intsec-border-soft: rgba(56, 189, 248, .14);
+    --intsec-primary: #38bdf8;
+    --intsec-primary-strong: #0ea5e9;
+    --intsec-cyan: #22d3ee;
+    --intsec-text: #eaf6ff;
+    --intsec-muted: #8eabc0;
 }
 
 html {
@@ -23,7 +36,7 @@ html {
 body {
     min-width: 320px;
     overflow-x: hidden;
-    background-color: #09090b;
+    background-color: var(--intsec-bg-deep);
     color: #f4f4f5;
 }
 

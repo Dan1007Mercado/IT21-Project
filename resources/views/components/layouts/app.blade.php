@@ -13,6 +13,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
     <x-app-assets />
     @if (auth()->user()?->isAdministrator())
         <meta name="intsec-realtime-enabled" content="1">
@@ -20,7 +23,7 @@
     {{ $head ?? '' }}
 </head>
 <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased" data-realtime-entities="{{ $realtimeEntities }}" data-realtime-source="{{ $realtimeSource }}">
-    <div class="min-h-screen lg:pl-72">
+    <div class="app-shell min-h-screen lg:pl-64">
         <x-navigation.sidebar />
         <x-navigation.mobile-navigation />
 

@@ -57,6 +57,15 @@ class DashboardController extends Controller
             'recentActivity' => (clone $authenticationQuery)->latest('occurred_at')->limit(5)->get(),
             'authenticationTrend' => $this->authenticationTrend($user->id, $days),
             'requestTrend' => $this->requestQueries->dailyTrend($days, MonitoringSource::Intsec->value),
+            'requestActivityTrend' => $this->requestQueries->hourlyTrend(24, MonitoringSource::Intsec->value),
+            'securityEventTrend' => $this->modelHourlyTrend(SecurityEvent::class),
+            'alertTrend' => $this->modelHourlyTrend(SecurityAlert::class),
+            'recentRequests' => RequestActivity::query()
+                ->forSource(MonitoringSource::Intsec->value)
+                ->latest('occurred_at')
+                ->limit(10)
+                ->get(),
+            'monitoredSourceCount' => count(MonitoringSource::cases()),
             'sourceRequestCounts' => RequestActivity::query()->selectRaw('source, COUNT(*) as total')->groupBy('source')->pluck('total', 'source'),
             'totalSecurityEvents' => $isAdministrator ? SecurityEvent::query()->count() : 0,
             'openSecurityAlertCount' => $isAdministrator ? SecurityAlert::query()->whereIn('status', ['new', 'acknowledged', 'investigating'])->count() : 0,
@@ -288,6 +297,25 @@ class DashboardController extends Controller
                 'count' => AuthenticationLog::query()->where('user_id', $userId)
                     ->whereDate('occurred_at', $date->toDateString())->count(),
             ];
+        })->values()->all();
+    }
+
+    /** @return array<int, array{label: string, count: int}> */
+    private function modelHourlyTrend(string $modelClass, int $hours = 12): array
+    {
+        $start = now()->subHours($hours - 1)->startOfHour();
+        $driver = $modelClass::query()->getConnection()->getDriverName();
+        $expression = $driver === 'sqlite'
+            ? "strftime('%Y-%m-%d %H:00:00', occurred_at)"
+            : "DATE_FORMAT(occurred_at, '%Y-%m-%d %H:00:00')";
+        $counts = $modelClass::query()->where('occurred_at', '>=', $start)
+            ->selectRaw("{$expression} as bucket, COUNT(*) as total")
+            ->groupBy('bucket')->pluck('total', 'bucket');
+
+        return collect(range($hours - 1, 0))->map(function (int $hoursAgo) use ($counts): array {
+            $time = now()->subHours($hoursAgo)->startOfHour();
+
+            return ['label' => $time->format('H:00'), 'count' => (int) ($counts[$time->format('Y-m-d H:00:00')] ?? 0)];
         })->values()->all();
     }
 }

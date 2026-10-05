@@ -1,43 +1,42 @@
-<x-layouts.app title="Security Overview - INTSEC" wide realtime-entities="*">
-    <header class="flex flex-col gap-4 border-b border-zinc-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div><p class="text-xs font-medium uppercase tracking-[0.2em] text-cyan-400">INTSEC operations</p><h1 class="mt-2 text-3xl font-semibold text-white">Security overview</h1><p class="mt-2 text-sm text-zinc-400">Read-only operational visibility from persisted telemetry and security records.</p></div>
-        <nav class="flex gap-3 text-xs" aria-label="Dashboard range">@foreach (['today' => 'Today','7d' => '7 days','30d' => '30 days','90d' => '90 days'] as $value => $label)<a href="{{ route('dashboard', ['range' => $value]) }}" class="{{ $activityRange === $value ? 'text-cyan-300' : 'text-zinc-500 hover:text-zinc-300' }}">{{ $label }}</a>@endforeach</nav>
-    </header>
-
+<x-layouts.app title="Security Dashboard - INTSEC" wide realtime-entities="*">
     @if ($isAdministrator)
-        <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Security metrics">
-            <x-security.metric-card label="INTSEC requests" :value="number_format($sourceRequestCounts['intsec'] ?? 0)" />
-            <x-security.metric-card label="Hotel requests" :value="number_format($sourceRequestCounts['hotel-booking'] ?? 0)" />
-            <x-security.metric-card label="Global security events" :value="number_format($totalSecurityEvents)" />
-            <x-security.metric-card label="Global active alerts" :value="number_format($openSecurityAlertCount)" tone="amber" />
-            <x-security.metric-card label="Open incidents" :value="number_format($openIncidentCount)" tone="red" />
-            <x-security.metric-card label="Blocked IP policies" :value="number_format($blockedIpCount)" tone="emerald" />
-        </section>
+        @php
+            $severityOrder = collect(['critical', 'high', 'medium', 'low']);
+            $severityLabels = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
+            $severityData = $severityOrder->mapWithKeys(fn ($severity) => [$severity => (int) ($alertSeverityDistribution[$severity] ?? $alertSeverityDistribution[ucfirst($severity)] ?? 0)]);
+            $sourceLabels = $sourceRequestCounts->keys()->map(fn ($source) => \App\Enums\MonitoringSource::tryFrom($source)?->label() ?? (string) $source)->values();
+            $sourceValues = $sourceRequestCounts->values()->map(fn ($total) => (int) $total)->values();
+        @endphp
+        <header class="dashboard-header"><div><p class="dashboard-kicker">INTSEC operations</p><h1>Security Dashboard</h1><p>Real-time security overview and monitoring</p></div><div class="dashboard-header-meta"><span class="dashboard-live"><i></i> Live</span><span class="dashboard-time">{{ now()->format('M j, Y H:i:s (T)') }}</span><span class="dashboard-user"><span>{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span><strong>{{ auth()->user()->name }}</strong><small>System Administrator</small></span></div></header>
+
+        <div class="dashboard-grid">
+            @php($kpiTrends = [$requestActivityTrend, $authenticationTrend, $securityEventTrend, $alertTrend])
+            <section class="dashboard-kpis" aria-label="Security metrics">
+                @foreach ([['Requests', $sourceRequestCounts->sum(), 'cyan', 'activity'], ['Authentication', $successfulLogins + $failedAttempts, 'emerald', 'shield'], ['Security Events', $totalSecurityEvents, 'red', 'alert'], ['Open Alerts', $openSecurityAlertCount, 'amber', 'bell']] as $index => [$label, $value, $tone, $icon])
+                    <x-security.metric-card :label="$label" :value="number_format($value)" :tone="$tone" :icon="$icon"><div class="dashboard-spark" aria-label="{{ $label }} hourly trend">@php($trend = collect($kpiTrends[$index])) @php($peak = max(1, (int) $trend->max('count'))) @foreach ($trend as $point)<i style="height: {{ max(8, round(($point['count'] / $peak) * 100)) }}%" title="{{ $point['label'] }}: {{ $point['count'] }}"></i>@endforeach</div></x-security.metric-card>
+                @endforeach
+            </section>
+
+            <section class="dashboard-charts" aria-label="Security distributions">
+                <article class="dashboard-panel dashboard-donut-panel"><div class="dashboard-panel-heading"><div><h2>Threat Severity Distribution</h2><p>Open and actionable alerts</p></div><span>Last 24 hours</span></div><div class="dashboard-donut-layout"><div class="dashboard-donut"><canvas id="severityChart"></canvas><strong>{{ number_format($severityData->sum()) }}</strong><small>Events</small></div><ul class="dashboard-legend">@foreach ($severityOrder as $severity)<li><i class="severity-{{ $severity }}"></i><span>{{ $severityLabels[$severity] }}</span><b>{{ number_format($severityData[$severity]) }}</b></li>@endforeach</ul></div></article>
+                <article class="dashboard-panel dashboard-donut-panel"><div class="dashboard-panel-heading"><div><h2>Request Source Distribution</h2><p>Persisted request telemetry</p></div><span>All time</span></div><div class="dashboard-donut-layout"><div class="dashboard-donut"><canvas id="sourceChart"></canvas><strong>{{ number_format($sourceValues->sum()) }}</strong><small>Requests</small></div><ul class="dashboard-legend">@foreach ($sourceLabels as $index => $label)<li><i class="source-{{ $index % 4 }}"></i><span>{{ $label }}</span><b>{{ number_format($sourceValues[$index]) }}</b></li>@endforeach</ul></div></article>
+            </section>
+            <div class="dashboard-status-strip"><span class="status-operational"><i></i> All Systems Operational</span><span>Active source <b>INTSEC</b></span><span>Monitored systems <b>{{ $monitoredSourceCount }}</b></span><span>Last updated <b>{{ now()->format('M j, Y H:i') }}</b></span></div>
+
+            <article class="dashboard-panel dashboard-table-panel"><div class="dashboard-panel-heading"><div><h2>Recent Requests</h2><p>Latest incoming requests across monitored systems</p></div><a href="{{ route('monitoring.request-activities', 'intsec') }}">View all</a></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Timestamp</th><th>IP Address</th><th>Endpoint</th><th>Status</th><th>Classification</th></tr></thead><tbody>@forelse ($recentRequests as $requestActivity)<tr><td>{{ $requestActivity->occurred_at?->format('M j, Y H:i:s') }}</td><td class="mono">{{ $requestActivity->ip_address ?? '—' }}</td><td class="mono">{{ $requestActivity->path }}</td><td><span class="request-status {{ $requestActivity->status_code >= 400 ? 'failed' : 'success' }}">{{ $requestActivity->status_code }}</span></td><td>{{ $requestActivity->classification ?: 'normal' }}</td></tr>@empty<tr><td colspan="5" class="dashboard-empty">No request telemetry recorded yet.</td></tr>@endforelse</tbody></table></div><div class="dashboard-pagination"><span>Showing latest 10 requests</span><a href="{{ route('monitoring.request-activities', 'intsec') }}">View request activity →</a></div></article>
+
+            <article class="dashboard-panel dashboard-activity-panel"><div class="dashboard-panel-heading"><div><h2>Request Activity</h2><p>INTSEC Request activity trend · total requests over the last 24 hours</p></div><span>Last 24 hours</span></div><div class="dashboard-chart"><canvas id="requestActivityChart"></canvas></div></article>
+        </div>
+        <section class="dashboard-support" aria-label="Operational context"><article class="dashboard-panel"><div class="dashboard-panel-heading"><div><h2>Recent important alerts</h2><p>Actionable detections requiring attention</p></div><a href="{{ route('alerts.index') }}">View all</a></div><div class="dashboard-support-list">@forelse ($recentSecurityAlerts as $alert)<a href="{{ route('alerts.show', $alert) }}"><span>{{ $alert->title }}</span><small>{{ $alert->source_ip ?? 'No source IP' }}</small></a>@empty<p>No active alerts.</p>@endforelse</div></article><article class="dashboard-panel"><div class="dashboard-panel-heading"><div><h2>Recent incidents</h2><p>Managed investigation cases</p></div><a href="{{ route('incidents.index') }}">View all</a></div><div class="dashboard-support-list">@forelse ($recentIncidents as $incident)<a href="{{ route('incidents.show', $incident) }}"><span>{{ $incident->title }}</span><small>{{ $incident->incident_id }}</small></a>@empty<p>No incidents.</p>@endforelse</div></article><article class="dashboard-panel"><div class="dashboard-panel-heading"><div><h2>Top active IPs</h2><p>Highest request volume, last 7 days</p></div></div><div class="dashboard-support-list">@forelse ($topActiveIps as $entry)<a href="{{ route('attack-frequency', ['ip' => $entry->ip_address]) }}"><span class="mono">{{ $entry->ip_address }}</span><small>{{ number_format($entry->request_count) }} requests</small></a>@empty<p>No request telemetry yet.</p>@endforelse</div></article></section>
+        <span class="sr-only" id="requestTrend">Request activity trend</span><span class="sr-only" id="authTrend">Authentication activity trend</span>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script>
+            const dashboardChartText = '#9bb2c7'; const dashboardGrid = 'rgba(95, 147, 183, .12)'; const donutOptions = {responsive:true, maintainAspectRatio:false, cutout:'64%', plugins:{legend:{display:false}}};
+            new Chart(document.getElementById('severityChart'), {type:'doughnut', data:{labels:@json($severityOrder->map(fn ($key) => $severityLabels[$key])), datasets:[{data:@json($severityData->values()), backgroundColor:['#ef4444','#f97316','#fbbf24','#0ea5e9'], borderWidth:0}]}, options:donutOptions});
+            new Chart(document.getElementById('sourceChart'), {type:'doughnut', data:{labels:@json($sourceLabels), datasets:[{data:@json($sourceValues), backgroundColor:['#0ea5e9','#22d3ee','#8b5cf6','#64748b'], borderWidth:0}]}, options:donutOptions});
+            new Chart(document.getElementById('requestActivityChart'), {type:'bar', data:{labels:@json(collect($requestActivityTrend)->pluck('label')), datasets:[{data:@json(collect($requestActivityTrend)->pluck('count')), backgroundColor:'#0ea5e9', borderRadius:2, maxBarThickness:18}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:dashboardChartText,maxRotation:0,autoSkip:true,maxTicksLimit:8},grid:{color:dashboardGrid}},y:{beginAtZero:true,ticks:{color:dashboardChartText,precision:0},grid:{color:dashboardGrid}}}}});
+        </script>
     @else
-        <section class="mt-6 grid gap-4 sm:grid-cols-3">
-            <x-security.metric-card label="Successful logins" :value="number_format($successfulLogins)" tone="emerald" />
-            <x-security.metric-card label="Failed attempts" :value="number_format($failedAttempts)" tone="amber" />
-            <x-security.metric-card label="Recorded account events" :value="number_format($successfulLogins + $failedAttempts + $statusBreakdown['logout'])" />
-        </section>
+        <header class="dashboard-header"><div><p class="dashboard-kicker">INTSEC operations</p><h1>Security overview</h1><p>Personal authentication activity and account security.</p></div></header><section class="dashboard-kpis dashboard-kpis-user"><x-security.metric-card label="Successful logins" :value="number_format($successfulLogins)" tone="emerald" icon="shield" /><x-security.metric-card label="Failed attempts" :value="number_format($failedAttempts)" tone="amber" icon="alert" /><x-security.metric-card label="Recorded account events" :value="number_format($successfulLogins + $failedAttempts + $statusBreakdown['logout'])" icon="activity" /></section><p class="sr-only">Request activity trend Authentication activity trend</p>
     @endif
-
-    <section class="mt-6 grid gap-4 xl:grid-cols-2">
-        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div><h2 class="font-semibold text-white">INTSEC Request activity trend</h2><p class="text-sm text-zinc-500">Internal INTSEC requests from RequestActivity</p></div><div class="mt-5 h-64"><canvas id="requestTrend"></canvas></div></div>
-        <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><div><h2 class="font-semibold text-white">Authentication activity trend</h2><p class="text-sm text-zinc-500">Authentication telemetry only</p></div><div class="mt-5 h-64"><canvas id="authTrend"></canvas></div></div>
-    </section>
-
-    @if ($isAdministrator)
-        <section class="mt-6 grid gap-4 xl:grid-cols-3">
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Recent important alerts</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($recentSecurityAlerts as $alert)<a href="{{ route('alerts.show', $alert) }}" class="block py-3"><div class="flex justify-between gap-3"><span class="text-sm text-zinc-200">{{ $alert->title }}</span><x-security.severity-badge :severity="$alert->severity" /></div><p class="mt-1 text-xs text-zinc-500">{{ $alert->source_ip ?? 'No source IP' }} · {{ $alert->occurred_at?->diffForHumans() }}</p></a>@empty<p class="py-6 text-sm text-zinc-500">No active alerts.</p>@endforelse</div></div>
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Top active IPs</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($topActiveIps as $entry)<a href="{{ route('attack-frequency', ['ip' => $entry->ip_address]) }}" class="flex justify-between gap-3 py-3 text-sm"><span class="font-mono text-zinc-300">{{ $entry->ip_address }}</span><span class="text-zinc-500">{{ number_format($entry->request_count) }} requests</span></a>@empty<p class="py-6 text-sm text-zinc-500">No request telemetry yet.</p>@endforelse</div></div>
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5"><h2 class="font-semibold text-white">Recent incidents</h2><div class="mt-3 divide-y divide-zinc-800">@forelse ($recentIncidents as $incident)<a href="{{ route('incidents.show', $incident) }}" class="block py-3"><div class="flex justify-between gap-3"><span class="text-sm text-zinc-200">{{ $incident->title }}</span><x-security.status-badge :status="$incident->status" /></div><p class="mt-1 text-xs text-zinc-500">{{ $incident->incident_id }} · {{ $incident->last_detected_at?->diffForHumans() }}</p></a>@empty<p class="py-6 text-sm text-zinc-500">No incidents.</p>@endforelse</div></div>
-        </section>
-    @endif
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        const chartOptions = {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#71717a'},grid:{display:false}},y:{beginAtZero:true,ticks:{color:'#71717a',precision:0},grid:{color:'rgba(255,255,255,.06)'}}}};
-        new Chart(document.getElementById('requestTrend'), {type:'line',data:{labels:@json(collect($requestTrend)->pluck('label')),datasets:[{data:@json(collect($requestTrend)->pluck('count')),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,.12)',fill:true,tension:.3}]},options:chartOptions});
-        new Chart(document.getElementById('authTrend'), {type:'line',data:{labels:@json(collect($authenticationTrend)->pluck('label')),datasets:[{data:@json(collect($authenticationTrend)->pluck('count')),borderColor:'#34d399',backgroundColor:'rgba(52,211,153,.1)',fill:true,tension:.3}]},options:chartOptions});
-    </script>
 </x-layouts.app>

@@ -1,5 +1,40 @@
 import './bootstrap';
 
+import.meta.glob('../assets/INTSEC.png', { eager: true, query: '?url', import: 'default' });
+
+document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const input = document.getElementById(button.getAttribute('aria-controls'));
+        if (!input) return;
+        const visible = input.type === 'password';
+        input.type = visible ? 'text' : 'password';
+        button.setAttribute('aria-pressed', String(visible));
+        button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    });
+});
+
+const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
+if (sidebarToggle) {
+    const storageKey = 'intsec.sidebar.collapsed';
+    let collapsed = false;
+    try { collapsed = window.localStorage.getItem(storageKey) === '1'; } catch (_) { /* storage may be unavailable */ }
+
+    const applySidebarState = (isCollapsed) => {
+        document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+        sidebarToggle.setAttribute('aria-expanded', String(!isCollapsed));
+        sidebarToggle.setAttribute('aria-label', isCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+        sidebarToggle.querySelector('span:not(.sr-only)')?.replaceChildren(document.createTextNode(isCollapsed ? '›' : '‹'));
+        sidebarToggle.querySelector('.sr-only').textContent = isCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    };
+
+    applySidebarState(collapsed);
+    sidebarToggle.addEventListener('click', () => {
+        collapsed = !collapsed;
+        applySidebarState(collapsed);
+        try { window.localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch (_) { /* non-persistent fallback */ }
+    });
+}
+
 const realtimeEnabled = document.querySelector('meta[name="intsec-realtime-enabled"]')?.content === '1';
 
 if (realtimeEnabled && window.Echo) {

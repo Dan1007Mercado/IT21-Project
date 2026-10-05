@@ -1,5 +1,6 @@
-<aside class="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-zinc-800 bg-zinc-950 lg:flex" aria-label="Primary navigation">
-    <div class="border-b border-zinc-800 px-6 py-6"><x-intsec-brand /></div>
+<aside id="intsec-sidebar" class="app-sidebar fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-zinc-800 bg-zinc-950 lg:flex" aria-label="Primary navigation">
+    <div class="app-sidebar-brand border-b border-zinc-800 px-6 py-6"><x-intsec-brand /></div>
+    <button type="button" class="app-sidebar-toggle" data-sidebar-toggle aria-expanded="true" aria-controls="intsec-sidebar" aria-label="Collapse sidebar"><span aria-hidden="true">‹</span><span class="sr-only">Collapse sidebar</span></button>
     <nav class="flex-1 space-y-5 overflow-y-auto px-4 py-6">
         <section><p class="px-3 text-xs font-medium uppercase tracking-wider text-zinc-600">Overview</p><div class="mt-2"><x-navigation.nav-item :href="route('dashboard')" :active="request()->routeIs('dashboard')">Security Dashboard</x-navigation.nav-item></div></section>
         @if (auth()->user()?->isAdministrator())
