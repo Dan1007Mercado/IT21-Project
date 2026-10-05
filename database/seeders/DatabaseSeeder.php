@@ -56,6 +56,15 @@ class DatabaseSeeder extends Seeder
             'role' => 'administrator',
             'is_active' => true,
         ]);
+        
+        $admin = User::query()->updateOrCreate([
+            'email' => 'd.mercado.547990@umindanao.edu.ph',
+        ], [
+            'name' => 'INTSEC Administrator',
+            'password' => Hash::make('password'),
+            'role' => 'administrator',
+            'is_active' => true,
+        ]);
 
         $user = User::query()->updateOrCreate([
             'email' => 'user@intsec.test',
